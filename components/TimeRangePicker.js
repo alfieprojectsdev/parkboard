@@ -2,9 +2,9 @@
 // TimeRangePicker.js - Select start/end times for booking
 // =============================================================================
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function TimeRangePicker({ onTimeRangeSelect }) {
+export default function TimeRangePicker({ value, onChange }) {
   const [startDate, setStartDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [duration, setDuration] = useState('4'); // hours
@@ -32,7 +32,7 @@ export default function TimeRangePicker({ onTimeRangeSelect }) {
         throw new Error('End time must be after start time');
       }
 
-      onTimeRangeSelect({
+      onChange({
         start: start.toISOString(),
         end: end.toISOString()
       });

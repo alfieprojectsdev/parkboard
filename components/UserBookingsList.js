@@ -2,126 +2,55 @@
 // UserBookingsList.js - Display and manage user's bookings
 // =============================================================================
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export default function UserBookingsList({ userId, refreshTrigger = 0 }) {
+export default function UserBookingsList({ userId }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('active'); // 'active', 'past', 'all'
 
   useEffect(() => {
-    fetchUserBookings();
-  }, [userId, refreshTrigger]);
-
-  const fetchUserBookings = async () => {
-    setLoading(true);
-    try {
+    async function fetchBookings() {
+      setLoading(true);
       const { data, error } = await supabase
         .from('bookings')
-        .select(`
-          *,
-          parking_slots(slot_number, slot_type, description)
-        `)
+        .select('*, parking_slots(slot_number, slot_type)')
         .eq('user_id', userId)
-        .order('start_time', { ascending: false });
-
-      if (error) throw error;
+        .in('status', ['confirmed'])
+        .order('start_time', { ascending: true });
       setBookings(data || []);
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
-    } finally {
       setLoading(false);
     }
-  };
+    if (userId) fetchBookings();
+  }, [userId]);
 
   const cancelBooking = async (bookingId) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('bookings')
-        .update({ status: 'cancelled' })
-        .eq('booking_id', bookingId);
-
-      if (error) throw error;
-      fetchUserBookings();
-    } catch (error) {
-      console.error('Error cancelling booking:', error);
-      alert('Failed to cancel booking');
-    }
+    await supabase
+      .from('bookings')
+      .update({ status: 'cancelled' })
+      .eq('booking_id', bookingId);
+    setBookings(bookings.filter(b => b.booking_id !== bookingId));
   };
 
-  const getFilteredBookings = () => {
-    const now = new Date();
-    
-    switch (filter) {
-      case 'active':
-        return bookings.filter(b => 
-          b.status === 'confirmed' && new Date(b.end_time) > now
-        );
-      case 'past':
-        return bookings.filter(b => 
-          b.status === 'completed' || new Date(b.end_time) <= now
-        );
-      default:
-        return bookings;
-    }
-  };
-
-  if (loading) {
-    return <div className="text-center py-8">Loading your bookings...</div>;
-  }
-
-  const filteredBookings = getFilteredBookings();
+  if (loading) return <div>Loading bookings...</div>;
+  if (!bookings.length) return <div>No active bookings.</div>;
 
   return (
-    <div className="space-y-6">
-      {/* Filter Controls */}
-      <div className="flex space-x-1 bg-gray-100 rounded-lg p-1 w-fit">
-        {[
-          { key: 'active', label: 'Active' },
-          { key: 'past', label: 'Past' },
-          { key: 'all', label: 'All' }
-        ].map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setFilter(key)}
-            className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
-              filter === key
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Bookings List */}
-      {filteredBookings.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <div className="text-gray-500">
-            {filter === 'active' ? 'No active bookings' : 
-             filter === 'past' ? 'No past bookings' : 'No bookings found'}
+    <div className="space-y-4">
+      {bookings.map(booking => (
+        <div key={booking.booking_id} className="border rounded p-4 flex justify-between items-center">
+          <div>
+            <div className="font-bold">{booking.parking_slots?.slot_number}</div>
+            <div className="text-sm">{new Date(booking.start_time).toLocaleString()} - {new Date(booking.end_time).toLocaleString()}</div>
           </div>
-          {filter === 'active' && (
-            <p className="mt-2 text-sm text-gray-400">
-              Click "New Booking" to reserve a parking slot
-            </p>
-          )}
+          <button
+            className="bg-red-600 text-white px-3 py-1 rounded"
+            onClick={() => cancelBooking(booking.booking_id)}
+          >
+            Cancel
+          </button>
         </div>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredBookings.map((booking) => (
-            <BookingCard
-              key={booking.booking_id}
-              booking={booking}
-              onCancel={cancelBooking}
-            />
-          ))}
-        </div>
-      )}
+      ))}
     </div>
   );
 }

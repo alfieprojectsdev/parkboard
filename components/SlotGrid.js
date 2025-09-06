@@ -103,14 +103,14 @@ export default function SlotGrid({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {slots.map((slot) => (
           <div
             key={slot.slot_id}
             onClick={() => slot.isAvailable && slot.status === 'available' && onSlotSelect(slot)}
-            className={`p-4 rounded-lg border text-center ${getSlotStatusColor(slot)}`}
+            className={`p-4 rounded-lg border text-center ${getSlotStatusColor(slot)} transition-all duration-150`}
           >
-            <div className="font-bold">{slot.slot_number}</div>
+            <div className="font-bold text-base md:text-lg">{slot.slot_number}</div>
             <div className="text-xs capitalize mt-1">{slot.slot_type}</div>
             {slot.description && (
               <div className="text-xs text-gray-600 mt-1">{slot.description}</div>
