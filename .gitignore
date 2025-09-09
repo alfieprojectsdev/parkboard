@@ -1,2 +1,12 @@
 .env
 .env.local
+
+# Playwright
+node_modules/
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# Agent config files
+/.github/copilot-instructions.md

@@ -4,5 +4,32 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"mcp": {
+			"servers": {
+				"my-mcp-server-c8b0c934": {
+					"url": "https://mcp.vercel.com",
+					"type": "http"
+				},
+				"my-mcp-server-07c6cdcf": {
+					"type": "stdio",
+					"command": "{",
+					"args": [
+						"servers:",
+						"{",
+						"github:",
+						"{",
+						"type:",
+						"http,",
+						"url:",
+						"https://api.githubcopilot.com/mcp/",
+						"}",
+						"}",
+						"}"
+					]
+				}
+			},
+			"inputs": []
+		}
+	}
 }

@@ -1,154 +1,205 @@
-# GitHub Copilot Instructions for ParkBoard
+# ParkBoard AI Playbook (Copilot Instructions)
 
 ## Project Overview
-ParkBoard is a condo parking booking web application built from first principles. This is an MVP designed to replace manual coordination systems (like Viber group chats) with a proper database-driven booking system for a small, vetted community of condo residents.
+ParkBoard is a condo parking booking web application built from first principles.  
+This MVP replaces manual coordination (like Viber chats) with a database-driven system for a small, vetted community of condo residents.  
 
-## Core Architecture Decisions
+**Mission:**  
+Ship a working MVP in 4–7 days with ruthless scope control.  
 
-### Database Pattern: Hotel Booking System
+---
+
+## MVP Ladder (Frozen Plan)
+- **Day 1:** Supabase schema + seed data + RLS on bookings.  
+- **Day 2:** Next.js project + API routes (`slots`, `bookings`).  
+- **Day 3:** Resident UI → login, view slots, book, cancel.  
+- **Day 4:** Admin UI → view bookings, manage slots, override.  
+- **Day 5:** Polish + mobile responsiveness + testing.  
+- **Day 6:** Deploy to Vercel + onboarding + docs.  
+- **Day 7 (buffer):** Launch, feedback, bug fixes.  
+
+**Scope Freeze (30 days):**  
+- No new business rules.  
+- New ideas → `future_ideas.md`.  
+- Cut features before extending timeline.  
+
+---
+
+## Core Architecture
+
+### Database Pattern
 - **Users** → Residents (with admin roles)  
-- **Parking Slots** → Bookable spaces
-- **Bookings** → Time-based reservations
-- **Payments** → Optional donations/fees
+- **Parking Slots** → Physical spaces  
+- **Bookings** → Time-based reservations  
+- **Payments** → Optional donations/fees  
 
-### Tech Stack (Frozen for MVP)
-- **Database**: Supabase/PostgreSQL with Row Level Security
+### Tech Stack
+- **Database**: Supabase/PostgreSQL with RLS  
 - **Backend**: Next.js API routes  
-- **Frontend**: Next.js + React + Tailwind CSS
-- **Auth**: Supabase Auth (`auth.users` + `user_profiles` pattern)
-- **Deployment**: Vercel
+- **Frontend**: Next.js + React + Tailwind CSS  
+- **Auth**: Supabase Auth (`auth.users` + `user_profiles`)  
+- **Deployment**: Vercel  
 
-### Security Model: "Vetted User Group"
-- Manual user onboarding (like existing Viber group)
-- MVP-level security, not enterprise-grade
-- Basic role separation: `resident` vs `admin`
-- RLS enabled only on sensitive tables (`bookings`, `user_profiles`)
+### Security Model
+- Manual onboarding (trusted residents only)  
+- Role separation: `resident` vs `admin`  
+- RLS on `bookings`, `user_profiles`  
+- MVP-level security — not enterprise-grade  
 
-## Schema Architecture
+---
 
-### Core Tables
+## Schema Architecture (Frozen)
 ```sql
 -- Links to Supabase auth.users
 user_profiles (id uuid, name, unit_number, email, role, vehicle_plate)
 
--- Physical parking spaces  
+-- Physical parking spaces
 parking_slots (slot_id, slot_number, slot_type, status, description)
 
 -- Time-based reservations
 bookings (booking_id, user_id, slot_id, start_time, end_time, status, notes)
 
 -- Optional for MVP
-payments (payment_id, booking_id, amount, payment_method, status)
+payments (payment_id, booking_id, amount, method, status)
 ```
 
-### Business Rules (Frozen for 30 Days)
-1. **One active booking per resident** at a time
-2. **No double-booking** - slot availability checked against time ranges
-3. **No past bookings** - start_time must be >= now (with 1hr grace period)
-4. **Admin override** exists for emergency management
+**Booking Status Enum (Frozen):**
 
-## Code Style & Patterns
+* `confirmed` → active, valid booking
+* `cancelled` → cancelled by user/admin
+* `completed` → booking ended normally
 
-### API Endpoints Structure
+Do not invent additional states without explicit approval.
+
+**Business Rules (Frozen 30 Days):**
+
+1. One active booking per resident.
+2. No double-booking (slot availability checked).
+3. No past bookings (start\_time ≥ now with 1hr grace).
+4. Admin override allowed.
+
+---
+
+## Canonical Component List
+
+Copilot must use these components instead of generating new ones:
+
+```
+/components/AuthWrapper.js
+/components/Navigation.js
+/components/UserDashboard.js
+/components/UserBookingsList.js
+/components/BookingForm.js
+/components/SlotGrid.js
+/components/AdminDashboard.js
+/components/TimeRangePicker.js
+/components/BookingConfirmation.js
+/components/BookingCard.js
+```
+
+Modify or extend these, don’t duplicate.
+
+---
+
+## Copilot Response Discipline
+
+When suggesting code, always:
+
+1. **Start with a short plan** (bullets).
+2. **List file paths** to be created/modified.
+3. **Show exact code** (full file or diffs).
+4. **End with shell commands** if needed.
+
+**Rules:**
+
+* Never suggest schema changes. Use only the schema above.
+* Return compile-ready, working code — no placeholders.
+* Confirm before destructive or migration actions.
+* Default to small, reversible changes.
+
+---
+
+## API Endpoints
+
 ```javascript
-// GET /api/slots - show available slots for time range
-// POST /api/bookings - create new booking with validation
-// GET /api/bookings/[userId] - user's current bookings
+// GET /api/slots - available slots
+// POST /api/bookings - create booking with validation
+// GET /api/bookings/[userId] - user's bookings
 // PUT /api/bookings/[id] - update/cancel booking
 // GET /api/admin/bookings - admin view of all bookings
 ```
 
-### Error Handling
-- Return meaningful HTTP status codes (400, 401, 403, 404, 409, 500)
-- Include user-friendly error messages for frontend display
-- Log detailed errors server-side for debugging
+---
 
-### Database Queries
-- Always use parameterized queries (prevent SQL injection)
-- Include proper joins between `user_profiles`, `bookings`, and `parking_slots`
-- Use indexes on common query patterns (`user_id`, `slot_id`, `start_time`)
+## Error Handling
 
-### Security Patterns
-- Check `auth.uid()` matches `user_id` for user operations
-- Verify admin role before allowing management operations
-- Use RLS policies as backup, not primary security
+* Return meaningful HTTP status codes (400, 401, 403, 404, 409, 500).
+* User-friendly error messages for frontend.
+* Log details server-side.
+
+---
+
+## Database Queries
+
+* Use parameterized queries.
+* Joins: `user_profiles` ↔ `bookings` ↔ `parking_slots`.
+* Add indexes on (`user_id`, `slot_id`, `start_time`).
+* **Timezone Guardrail:** Always store timestamps in UTC. Format only at render time.
+
+---
 
 ## Development Priorities
 
-### MVP Must-Haves (Days 1-5)
-1. User login → view available slots → book slot → confirm booking
-2. Admin dashboard → view all bookings → manage slot status
-3. Basic conflict prevention (no double bookings)
-4. Mobile-responsive UI
+**Must-Haves (Days 1–5):**
 
-### Nice-to-Haves (Post-MVP)
-- Email confirmations
-- Recurring bookings  
-- Advanced reporting
-- Payment integration
-- Push notifications
+* User login → view slots → book slot → confirm booking.
+* Admin dashboard → view all bookings → manage slots.
+* No double-bookings.
+* Mobile responsiveness.
 
-## ADHD-Friendly Development Rules
+**Nice-to-Haves (Post-MVP):**
 
-### Scope Control
-- **30-day feature freeze** - no new requirements during MVP development
-- New ideas go in `future_ideas.md`, not current sprint
-- Cut features before extending timeline
+* Email confirmations.
+* Recurring bookings.
+* Reporting.
+* Payments.
+* Push notifications.
 
-### Code Organization
-```
-/db/
-  schema_v2.sql
-  rls_policies.sql
-  seed_data.sql
-  wipe_and_reset.sql
-/src/lib/
-  supabase.js
-/pages/api/
-  slots.js
-  bookings/
-/components/
-  BookingForm.js
-  SlotGrid.js
-  AdminDashboard.js
-```
+---
 
-### Daily Progress Tracking
-- Focus on complete user flows, not individual features
-- Test the happy path every day
-- Ship MVP in 4-7 days maximum
+## ADHD-Friendly Guardrails
 
-## Common Pitfalls to Avoid
+* **30-day feature freeze.**
+* New ideas → `future_ideas.md`.
+* Focus on *flows*, not features.
+* Test happy path daily.
+* Ship MVP first, polish later.
 
-### Database
-- Don't modify `auth.users` directly (use `user_profiles`)
-- Don't forget foreign key constraints between tables
-- Don't skip RLS policies on sensitive data
+---
 
-### API Design
-- Don't expose internal IDs to frontend unnecessarily
-- Don't trust client-side validation alone
-- Don't forget to handle timezone edge cases
+## Pitfalls to Avoid
 
-### UI/UX
-- Keep it simple - this replaces a Viber chat, not Airbnb
-- Mobile-first design (residents book on phones)
-- Clear error messages for booking conflicts
+* ❌ Don’t modify `auth.users` directly.
+* ❌ Don’t skip foreign key constraints.
+* ❌ Don’t forget RLS policies.
+* ❌ Don’t expose internal IDs unnecessarily.
+* ❌ Don’t trust client validation alone.
+* ❌ Don’t forget timezones in booking logic.
 
-## Context for AI Assistance
+---
 
-### When suggesting code:
-- Assume Supabase client is already configured
-- Use the established schema (don't suggest schema changes)
-- Follow the Hotel Booking transaction pattern
-- Keep security at "vetted group" level, not enterprise
+## Environment & Secrets
 
-### When solving problems:
-- Prioritize MVP delivery over perfect architecture
-- Suggest pragmatic solutions that work with small user base
-- Remember this replaces manual coordination, not complex business logic
+* Use `.env.local` only.
+* Never commit secrets.
+* Use `process.env.*` for all keys.
+* Supabase: anon key (client), service key (server-only).
 
-### When debugging:
-- Check foreign key relationships first
-- Verify RLS policies aren't blocking legitimate operations
-- Look for timezone/timestamp issues in booking logic
+---
+
+## Glossary
+
+* **Resident** = condo user.
+* **Admin** = management role.
+* **Slot** = individual parking space.
+* **Booking** = reservation record (time window).
