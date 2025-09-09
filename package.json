@@ -1,0 +1,26 @@
+{
+  "name": "parkboard",
+  "version": "1.0.0",
+  "description": "ParkBoard is a minimal parking booking web app for a small, vetted condo community. It follows a hotel-booking pattern (users, parking slots, bookings) and is built as an MVP using Supabase + Next.js + Tailwind.",
+  "main": "create_user.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alfieprojectsdev/parkboard.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/alfieprojectsdev/parkboard/issues"
+  },
+  "homepage": "https://github.com/alfieprojectsdev/parkboard#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^24.3.1"
+  }
+}
