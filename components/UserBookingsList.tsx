@@ -1,6 +1,5 @@
-// =============================================================================
-// UserBookingsList.js - Display and manage user's bookings
-// =============================================================================
+// components/UserBookingsList.tsx - Display and manage user's bookings
+"use client";
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';

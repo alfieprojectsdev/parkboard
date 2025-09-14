@@ -1,5 +1,5 @@
 // =============================================================================
-// BookingConfirmation.js - Success state after booking
+// components/BookingConfirmation.js - Success state after booking
 // =============================================================================
 
 export default function BookingConfirmation({ booking, onDone }) {

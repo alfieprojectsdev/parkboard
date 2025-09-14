@@ -1,7 +1,4 @@
-Perfect — here’s a **compact curl testing checklist** for all 4 tables (`user_profiles`, `parking_slots`, `bookings`, `payments`) covering **GET, POST, PATCH, DELETE**. You can copy-paste these and tweak IDs/UUIDs for your local dev.
-
----
-
+<!-- docs/curl-testing-checklist.md -->
 ## **1️⃣ User Profiles**
 
 ### GET all
@@ -161,7 +158,3 @@ curl -X DELETE http://localhost:3000/api/payments/1
 * When `NEXT_PUBLIC_DEV_MODE=true` → FK checks bypassed, so you can insert arbitrary `user_id` and `id`.
 * When `NEXT_PUBLIC_DEV_MODE=false` → FK checks active, errors are returned if `auth.users` or referenced rows don’t exist.
 * You can chain `GET` commands after POST/PATCH/DELETE to verify changes in real time.
-
----
-
-If you want, I can also make a **tiny table that shows expected row counts before/after each curl** — makes it super quick to verify if the endpoint actually updated the DB. Do you want me to do that?

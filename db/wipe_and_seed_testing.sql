@@ -12,6 +12,54 @@ DROP TABLE IF EXISTS bookings;
 DROP TABLE IF EXISTS parking_slots;
 DROP TABLE IF EXISTS user_profiles;
 
+-- -- =============================================================================
+-- -- Re-enable FK to auth.users for real login testing
+-- -- =============================================================================
+
+-- -- WARNING: Only do this in local/dev. In production, never hardcode passwords.
+
+-- -- Create a test user in Supabase Auth
+-- insert into auth.users (id, instance_id, email, encrypted_password, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, aud, role)
+-- values (
+--   '11111111-1111-1111-1111-111111111111', -- fixed UUID
+--   '00000000-0000-0000-0000-000000000000',
+--   'test@parkboard.app',
+--   crypt('password123', gen_salt('bf')), -- bcrypt hash
+--   now(),
+--   '{"provider":"email","providers":["email"]}',
+--   '{}',
+--   now(),
+--   now(),
+--   'authenticated',
+--   'authenticated'
+-- );
+
+-- -- Recreate user_profiles with real FK
+-- create table user_profiles (
+--   id uuid primary key references auth.users(id) on delete cascade,
+--   name text not null,
+--   unit_number text not null,
+--   email text not null,
+--   phone text,
+--   vehicle_plate text,
+--   role text check (role in ('resident','admin')) default 'resident',
+--   created_at timestamptz default now(),
+--   updated_at timestamptz default now()
+-- );
+
+-- -- Insert profile row that matches auth.users
+-- insert into user_profiles (id, name, unit_number, email, phone, vehicle_plate, role)
+-- values (
+--   '11111111-1111-1111-1111-111111111111',
+--   'Alice Resident',
+--   '101A',
+--   'test@parkboard.app',
+--   '09171234567',
+--   'ABC-123',
+--   'resident'
+-- );
+
+
 -- -----------------------------
 -- USER PROFILES
 -- -----------------------------

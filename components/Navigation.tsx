@@ -1,10 +1,12 @@
 // =============================================================================
-// Navigation.js - Header with user info and role switching
+// components/Navigation.js - Header with user info and role switching
 // =============================================================================
+"use client";
 
 import Link from 'next/link';
 import { useAuth } from './AuthWrapper';
 import { useState } from 'react';
+import { supabase } from "@/lib/supabase";
 
 export default function Navigation() {
   const { profile } = useAuth();

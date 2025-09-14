@@ -1,6 +1,5 @@
-// =============================================================================
-// SlotGrid.js - Display available slots with booking capability
-// =============================================================================
+// SlotGrid.tsx - Display available slots with booking capability
+"use client";
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -27,7 +26,7 @@ export default function SlotGrid({
       // Fetch all active slots
       const { data: allSlots, error: slotsError } = await supabase
         .from('parking_slots')
-        .select('*')
+        .select('slot_id, slot_number, slot_type, status, description')
         .in('status', ['available', 'reserved']);
 
       if (slotsError) throw slotsError;
@@ -59,9 +58,11 @@ export default function SlotGrid({
           isAvailable: slot.status === 'available'
         })));
       }
-    } catch (err) {
+    } catch (err: any) {
       setError('Failed to load parking slots');
-      console.error('Error fetching slots:', err);
+      console.error(
+    'Error fetching slots:',
+    err?.error ?? err?.message ?? err);
     } finally {
       setLoading(false);
     }
@@ -105,9 +106,16 @@ export default function SlotGrid({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
         {slots.map((slot) => (
-          <div
-            key={slot.slot_id}
-            onClick={() => slot.isAvailable && slot.status === 'available' && onSlotSelect(slot)}
+          <div key={slot.slot_id ?? slot.id}
+            onClick={() =>
+              slot.isAvailable &&
+              slot.status === 'available' &&
+              onSlotSelect({
+                slot_id: slot.slot_id,       // real PK column
+                slot_number: slot.slot_number,
+                slot_type: slot.slot_type,
+              })
+              }
             className={`p-4 rounded-lg border text-center ${getSlotStatusColor(slot)} transition-all duration-150`}
           >
             <div className="font-bold text-base md:text-lg">{slot.slot_number}</div>
