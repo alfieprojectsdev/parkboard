@@ -1,68 +1,37 @@
 <!-- .github/copilot-instructions.md -->
 # ParkBoard AI Playbook (Copilot Instructions)
 
-# ParkBoard AI Agent Instructions
+## ParkBoard — AI agent instructions (short)
 
-ParkBoard is a minimal parking booking app for condo communities, built as an MVP using Supabase, Next.js, and Tailwind. The codebase is organized for rapid iteration and strict scope control.
+1) Big picture (what to know)
+ - Frontend: Next.js + React + Tailwind. Pages live under `app/` and client components under `components/`.
+ - Backend: Next.js API routes in `app/api/*` (bookings, slots, profiles, payments). Server routes often use Supabase anon or service keys explicitly (see `app/api/bookings/route.ts`).
+ - DB: Supabase/Postgres. Canonical schema: `db/schema_v2.sql`. RLS policies in `db/rls_policies.sql` enforce row access (do not bypass in normal changes).
 
-## Architecture & Data Flow
-- **Frontend:** Next.js + React + Tailwind CSS. UI flows are modular, with canonical components in `/components` (see below).
-- **Backend:** Next.js API routes in `/app/api/*` handle bookings, slots, profiles, and payments. All business logic is enforced both client- and server-side.
-- **Database:** Supabase/PostgreSQL. Schema is frozen (see `/db/schema_v2.sql`). Row Level Security (RLS) is enforced via `/db/rls_policies.sql`.
-- **Auth:** Supabase Auth, with user profiles in `user_profiles` (linked to `auth.users`). Roles: `resident` and `admin`.
+2) Must-follow conventions
+ - Business rules are frozen for 30 days (see `parkboard_mvp_plan.md`). Don't change schema or booking rules without approval.
+ - Use existing components — extend, don't duplicate: `AuthWrapper.tsx`, `BookingForm.tsx`, `SlotGrid.tsx`, `UserDashboard.tsx`, `AdminDashboard.tsx`.
+ - Timezones: timestamps use TIMESTAMPTZ (UTC). Convert only when rendering.
 
-## Key Conventions
-- **Business rules are frozen for 30 days.** No new rules or schema changes—see `/parkboard_mvp_plan.md` for allowed flows.
-- **Canonical components:** Always use/extend, never duplicate:
-	- `components/AuthWrapper.tsx` (auth/session)
-	- `components/Navigation.tsx` (header/nav)
-	- `components/UserDashboard.tsx` (resident dashboard)
-	- `components/UserBookingsList.tsx` (user bookings)
-	- `components/BookingForm.tsx` (booking creation)
-	- `components/SlotGrid.tsx` (slot selection)
-	- `components/AdminDashboard.tsx` (admin dashboard)
-	- `components/TimeRangePicker.tsx` (date/time picker)
-	- `components/BookingConfirmation.tsx` (success state)
+3) Quick workflows (commands you can use)
+ - Install: `npm install`
+ - Dev: `npm run dev`
+ - Build: `npm run build`
+ - Unit tests: `npm test` (Jest). Example: `npm test -- tests/unit/BookingForm.test.js`
+ - E2E: `npm run test:e2e` (Playwright)
 
-## API Endpoints
-- `/api/slots` — GET: list slots, POST: create slot (admin only)
-- `/api/bookings` — GET: user bookings, POST: create booking (with conflict checks)
-- `/api/bookings/[id]` — GET/PATCH/DELETE: manage booking
-- `/api/profiles` — GET: list profiles, POST: create profile
-- `/api/payments` — GET/POST: payment records (optional)
+4) API & validation notes (examples)
+ - Booking creation endpoint `/api/bookings` performs overlap checks (see `app/api/bookings/route.ts`). Mirror its validations when updating UI logic.
+ - `SlotGrid.tsx` uses `bookings` queries to mark availability — replicate server-side checks rather than trusting UI.
 
-## Developer Workflows
-- **Install:** `npm install`
-- **Run dev server:** `npm run dev`
-- **Test:** `npm test` (unit), `npm run test:e2e` (Playwright E2E)
-- **DB setup:** Run `/db/schema_v2.sql`, `/db/rls_policies.sql`, `/db/seed_data.sql` in Supabase SQL editor
-- **Reset DB:** `/db/wipe_and_reset.sql` (destructive)
-- **Useful queries:** `/db/useful_queries.sql` for slot/booking checks
+5) Files to open first (fast context)
+ - `db/schema_v2.sql`, `db/rls_policies.sql`, `db/useful_queries.sql`
+ - `app/api/bookings/route.ts`, `app/api/slots/route.ts`, `app/api/profiles/route.ts`
+ - `components/AuthWrapper.tsx`, `components/BookingForm.tsx`, `components/SlotGrid.tsx`, `components/AdminDashboard.tsx`
 
-## Patterns & Guardrails
-- **Booking logic:** Always check for time conflicts and enforce "one active booking per resident" both in UI and API. See `BookingForm.tsx`, `SlotGrid.tsx`, and `/db/useful_queries.sql`.
-- **RLS policies:** Never bypass RLS except for admin/service role. See `/db/rls_policies.sql`.
-- **Timezone:** All timestamps are UTC (TIMESTAMPTZ). Format only at render time.
-- **Environment:** Use `.env.local` for secrets. Never commit keys.
-- **Error handling:** Return meaningful HTTP status codes and user-friendly messages. See API route examples.
+6) Pitfalls & guardrails
+ - Do not alter `auth.users` directly — use `user_profiles` for application data.
+ - RLS is the primary security model. Only use service role keys in trusted server code (already used in some server routes).
+ - Keep changes small and reversible; prefer adding helpers over large refactors in the MVP window.
 
-## Testing
-- **Unit tests:** See `/tests/unit/BookingForm.test.js` for booking logic validation.
-- **E2E tests:** See `/tests/e2e.spec.ts` for full user/admin flows. Run with Playwright.
-
-## Common Pitfalls
-- ❌ Never modify `auth.users` directly—use `user_profiles` for app data.
-- ❌ Never skip foreign key constraints or RLS policies.
-- ❌ Never expose internal IDs to the client unless required.
-- ❌ Never trust client validation alone—always validate server-side.
-- ❌ Never change schema or business rules without updating `/parkboard_mvp_plan.md`.
-
-## Quick Reference
-- **Schema:** `/db/schema_v2.sql` (frozen)
-- **RLS policies:** `/db/rls_policies.sql`
-- **Seed data:** `/db/seed_data.sql`
-- **API routes:** `/app/api/*`
-- **Components:** `/components/*`
-- **Tests:** `/tests/*`
-
-For more, see `/README.md` and `/parkboard_mvp_plan.md`.
+If any of these references are out-of-date or you want the longer playbook merged back in, tell me which sections to restore or expand.

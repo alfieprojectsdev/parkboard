@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # =============================================================================
 # Script: export_project_code_only.sh
 # Description: Export ONLY your deliberate project code, excluding all
@@ -57,10 +56,57 @@ for cfg in "${USER_CONFIGS[@]}"; do
     fi
 done
 
+# Documentation files
+echo "## Documentation Files" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+if [[ -d ./docs ]]; then
+    find ./docs -type f -name "*.md" | sort | while read -r file; do
+        echo '```markdown' >> "$OUTPUT_FILE"
+        echo "// $file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat "$file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo '```' >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+    done
+fi
+
+# Database files
+echo "## Database Schema and Scripts" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Main db directory SQL files
+if [[ -d ./db ]]; then
+    find ./db -maxdepth 1 -type f -name "*.sql" | sort | while read -r file; do
+        echo '```sql' >> "$OUTPUT_FILE"
+        echo "-- $file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat "$file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo '```' >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+    done
+fi
+
+# Database migrations
+if [[ -d ./db/migrations ]]; then
+    find ./db/migrations -type f -name "*.sql" | sort | while read -r file; do
+        echo '```sql' >> "$OUTPUT_FILE"
+        echo "-- $file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat "$file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo '```' >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+    done
+fi
+
 # Package.json (just the important parts)
+echo "## Package Dependencies" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
 if [[ -f package.json ]]; then
-    echo "## Package Dependencies" >> "$OUTPUT_FILE"
-    echo "" >> "$OUTPUT_FILE"
     echo '```json' >> "$OUTPUT_FILE"
     echo "// package.json (dependencies only)" >> "$OUTPUT_FILE"
     echo "" >> "$OUTPUT_FILE"
@@ -72,3 +118,13 @@ fi
 
 echo "Export complete: $OUTPUT_FILE"
 echo "File size: $(du -h "$OUTPUT_FILE" | cut -f1)"
+
+# Show what was included for verification
+echo ""
+echo "Files included:"
+echo "- TypeScript/JavaScript files from: ./app ./components ./lib ./utils ./hooks ./contexts ./types"
+echo "- Documentation files from: ./docs/*.md"
+echo "- Database files from: ./db/*.sql"
+echo "- Migration files from: ./db/migrations/*.sql" 
+echo "- Configuration files: next.config.js, tailwind.config.js, .env.local, etc."
+echo "- Package dependencies summary"

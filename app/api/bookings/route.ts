@@ -1,4 +1,5 @@
-// app/api/bookings/route.ts
+// ./app/api/bookings/route.ts
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "User ID required" }, { status: 400 });
     }
 
+    // FIXED: Added nested parking_slots relation to match POST endpoint
     const { data, error } = await supabase
       .from("bookings")
       .select("*, parking_slots(slot_number, slot_type)")
@@ -79,7 +81,8 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from("bookings")
     .insert([{ ...body, status: body.status || "confirmed" }])
-    .select()
+    // return the booking plus parking_slots relation so frontend gets slot_number & slot_type
+    .select("*, parking_slots(slot_number, slot_type)")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

@@ -10,3 +10,11 @@ node_modules/
 
 # Agent config files
 /.github/copilot-instructions.md
+
+# no source/config snapshots
+*.md.backup
+project_code_only.md
+
+# automation tools
+# stage_and_commit.sh
+# export_frontend_and_config_to_md.sh

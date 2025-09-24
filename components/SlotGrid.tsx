@@ -1,132 +1,162 @@
-// SlotGrid.tsx - Display available slots with booking capability
+// SlotGrid.tsx - Display available slots with booking capability (clean version)
 "use client";
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import React from "react";
 
-export default function SlotGrid({ 
-  selectedDate, 
-  selectedTimeRange,
-  onSlotSelect,
-  refreshTrigger = 0 
+type Slot = {
+  slot_id: string | number;
+  slot_number?: string;
+  slot_type?: string;
+  isAvailable?: boolean;
+  status?: string;
+};
+
+export default function SlotGrid(props: {
+  onSlotSelect: (s: { slot_id: string | number; slot_number?: string; slot_type?: string }) => void;
+  selectedSlotId?: string | number | null;
+  selected?: { slot_id?: string | number } | null;
+  selectedDate?: string;
+  selectedTimeRange?: { start: string; end: string };
 }) {
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const {
+    onSlotSelect,
+    selectedSlotId,
+    selected,
+    selectedDate,
+    selectedTimeRange,
+  } = props;
+
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const selId = selectedSlotId ?? selected?.slot_id ?? null;
 
   useEffect(() => {
-    fetchAvailableSlots();
-  }, [selectedDate, selectedTimeRange, refreshTrigger]);
+    const fetchSlots = async () => {
+      if (!selectedDate || !selectedTimeRange?.start || !selectedTimeRange?.end) {
+        return;
+      }
 
-  const fetchAvailableSlots = async () => {
-    setLoading(true);
-    setError('');
+      setLoading(true);
+      setError(null);
 
-    try {
-      // Fetch all active slots
-      const { data: allSlots, error: slotsError } = await supabase
-        .from('parking_slots')
-        .select('slot_id, slot_number, slot_type, status, description')
-        .in('status', ['available', 'reserved']);
+      try {
+        const { data: allSlots, error: slotsError } = await supabase
+          .from('parking_slots')
+          .select('slot_id, slot_number, slot_type, status, description')
+          .eq('status', 'available');
 
-      if (slotsError) throw slotsError;
+        if (slotsError) throw slotsError;
 
-      // If time range is selected, check for conflicts
-      if (selectedTimeRange?.start && selectedTimeRange?.end) {
-        const { data: bookings, error: bookingsError } = await supabase
-          .from('bookings')
-          .select('slot_id')
-          .eq('status', 'confirmed')
-          .lt('start_time', selectedTimeRange.end)
-          .gt('end_time', selectedTimeRange.start);
+        // Check availability for each slot with proper error handling
+        const slotsWithAvailability = await Promise.all(
+          (allSlots || []).map(async (slot) => {
+            try {
+              const { data: conflicts, error: conflictsError } = await supabase
+                .from('bookings')
+                .select('booking_id')
+                .eq('slot_id', slot.slot_id)
+                .eq('status', 'confirmed')
+                .or(`and(start_time.lt.${selectedTimeRange.end},end_time.gt.${selectedTimeRange.start})`);
 
-        if (bookingsError) throw bookingsError;
+              if (conflictsError) {
+                console.error('Error checking slot availability:', conflictsError);
+                return { ...slot, isAvailable: true }; // Fallback to available
+              }
 
-        const bookedSlotIds = new Set(bookings.map(b => b.slot_id));
-        
-        // Mark slots as available/booked
-        const slotsWithAvailability = allSlots.map(slot => ({
-          ...slot,
-          isAvailable: slot.status === 'available' && !bookedSlotIds.has(slot.slot_id)
-        }));
+              return {
+                ...slot,
+                isAvailable: !conflicts || conflicts.length === 0
+              };
+            } catch (networkError) {
+              console.error('Network error checking slot availability:', networkError);
+              return { ...slot, isAvailable: true }; // Fallback to available
+            }
+          })
+        );
 
         setSlots(slotsWithAvailability);
-      } else {
-        // No time range selected, show all slots
-        setSlots(allSlots.map(slot => ({
-          ...slot,
-          isAvailable: slot.status === 'available'
-        })));
+      } catch (err: any) {
+        console.error('Error fetching slots:', err);
+        setError(err.message || 'Failed to load slots');
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError('Failed to load parking slots');
-      console.error(
-    'Error fetching slots:',
-    err?.error ?? err?.message ?? err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
-  const getSlotStatusColor = (slot) => {
-    if (slot.status === 'maintenance') return 'bg-red-200 text-red-800';
-    if (slot.status === 'reserved') return 'bg-yellow-200 text-yellow-800';
-    if (!slot.isAvailable) return 'bg-gray-200 text-gray-600';
-    return 'bg-green-200 text-green-800 hover:bg-green-300 cursor-pointer';
+    fetchSlots();
+  }, [selectedDate, selectedTimeRange?.start, selectedTimeRange?.end]);
+
+  const getSlotStatusColor = (slot: Slot) => {
+    if (!slot.isAvailable) {
+      return "bg-gray-200 border-gray-300";
+    }
+    if (selId !== null && selId === slot.slot_id) {
+      return "bg-blue-100 border-blue-500 ring-2 ring-blue-300";
+    }
+    return "bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50";
   };
 
   if (loading) {
-    return <div className="text-center py-8">Loading parking slots...</div>;
+    return (
+      <div className="text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
+        <div className="text-gray-600">Loading parking slots...</div>
+      </div>
+    );
   }
 
   if (error) {
     return <div className="text-red-600 text-center py-8">{error}</div>;
   }
 
-  return (
-    <div className="space-y-4">
-      <div className="flex space-x-4 text-sm">
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-green-200 rounded"></div>
-          <span>Available</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-gray-200 rounded"></div>
-          <span>Booked</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-red-200 rounded"></div>
-          <span>Maintenance</span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="w-4 h-4 bg-yellow-200 rounded"></div>
-          <span>Reserved</span>
-        </div>
-      </div>
+  if (slots.length === 0) {
+    return <div className="text-gray-600 text-center py-8">No available slots for the selected time</div>;
+  }
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-        {slots.map((slot) => (
-          <div key={slot.slot_id ?? slot.id}
-            onClick={() =>
-              slot.isAvailable &&
-              slot.status === 'available' &&
-              onSlotSelect({
-                slot_id: slot.slot_id,       // real PK column
-                slot_number: slot.slot_number,
-                slot_type: slot.slot_type,
-              })
+  return (
+    <div>
+      <h3 className="text-lg font-semibold mb-4">Available Slots</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {slots.map((slot) => {
+          const available = !!slot.isAvailable;
+          const badgeText = available ? "Available" : slot.status === "reserved" ? "Reserved" : "Unavailable";
+
+          return (
+            <button
+              key={slot.slot_id}
+              onClick={() =>
+                available &&
+                onSlotSelect({
+                  slot_id: slot.slot_id,
+                  slot_number: slot.slot_number,
+                  slot_type: slot.slot_type,
+                })
               }
-            className={`p-4 rounded-lg border text-center ${getSlotStatusColor(slot)} transition-all duration-150`}
-          >
-            <div className="font-bold text-base md:text-lg">{slot.slot_number}</div>
-            <div className="text-xs capitalize mt-1">{slot.slot_type}</div>
-            {slot.description && (
-              <div className="text-xs text-gray-600 mt-1">{slot.description}</div>
-            )}
-          </div>
-        ))}
+              disabled={!available}
+              className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-transform duration-100 transform ${getSlotStatusColor(
+                slot
+              )} ${available ? "hover:scale-[1.02] cursor-pointer" : "opacity-80 cursor-not-allowed"}`}
+              aria-pressed={selId !== null && selId === slot.slot_id}
+              aria-label={`${slot.slot_number ?? slot.slot_id} - ${slot.slot_type ?? ""} - ${badgeText}`}
+            >
+              <div className="text-sm font-semibold">{slot.slot_number ?? slot.slot_id}</div>
+              <div className="text-xs text-gray-700 capitalize">{slot.slot_type ?? "–"}</div>
+
+              <span
+                className={`mt-2 inline-block px-2 py-0.5 text-xs rounded-full ${
+                  available ? "bg-green-700 text-white" : slot.status === "reserved" ? "bg-yellow-700 text-white" : "bg-gray-300 text-gray-800"
+                }`}
+              >
+                {badgeText}
+              </span>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 }
-

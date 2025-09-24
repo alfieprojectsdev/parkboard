@@ -1,7 +1,7 @@
 // components/UserDashboard.tsx - Main resident view with bookings and new booking flow
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import UserBookingsList from './UserBookingsList';
 import BookingForm from './BookingForm';
 import BookingConfirmation from './BookingConfirmation';
@@ -10,6 +10,7 @@ import { useAuth } from './AuthWrapper';
 export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
   const [bookingConfirmed, setBookingConfirmed] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { profile, loading } = useAuth();
 
   // Guard for loading state and missing profile
@@ -39,7 +40,9 @@ export default function UserDashboard() {
     setActiveTab(tab);
     setBookingConfirmed(null); // reset confirmation when switching tabs
   };
- 
+
+  const triggerRefresh = () => setRefreshKey((k) => k + 1);
+
   return (
     <div className="max-w-4xl mx-auto py-8 px-4">
       {/* Welcome header */}
@@ -77,7 +80,7 @@ export default function UserDashboard() {
       {/* Tab content */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         {activeTab === 'bookings' && (
-          <UserBookingsList userId={profile.id || ''} />
+          <UserBookingsList userId={profile.id || ''} key={refreshKey} />
         )}
 
         {activeTab === 'new' && !bookingConfirmed && (
@@ -89,7 +92,11 @@ export default function UserDashboard() {
         {bookingConfirmed && (
           <BookingConfirmation
             booking={bookingConfirmed}
-            onDone={() => setBookingConfirmed(null)}
+            onDone={() => {
+              setBookingConfirmed(null);
+              setActiveTab('bookings');
+            }}
+            refreshBookings={triggerRefresh}
           />
         )}
       </div>

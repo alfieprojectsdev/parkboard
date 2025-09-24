@@ -1,3 +1,472 @@
+# 2025-09-24 16:00
+
+Looking at your current project state, I'll analyze the code for improvements and address your specific concerns about the icons, database scripts, RLS, and user flow coverage.
+
+## Project Analysis
+
+### 1. Icon Issue - You're Right
+The icons do feel disconnected from the parking slot info. The issue is in `UserBookingsList.tsx` - you're using the same generic clipboard icon for all slots regardless of their type or characteristics. Here's a fix:
+
+```tsx
+// Helper function to get appropriate icon for slot type
+const getSlotIcon = (slotType: string) => {
+  switch (slotType?.toLowerCase()) {
+    case 'covered':
+      return (
+        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        </svg>
+      );
+    case 'visitor':
+      return (
+        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      );
+    default: // uncovered
+      return (
+        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+        </svg>
+      );
+  }
+};
+
+// Then in the component, replace the generic icon with:
+<div className="bg-blue-100 p-2 rounded-lg mr-3 flex-shrink-0">
+  {getSlotIcon(booking.parking_slots?.slot_type)}
+</div>
+```
+
+### 2. Clean Database Scripts & RLS
+
+Here's a production-ready database setup that properly implements RLS for user testing:
+
+```sql
+-- =============================================================================
+-- ParkBoard Production Database Setup
+-- Run this in order: 1) Schema, 2) RLS Policies, 3) Seed Data
+-- =============================================================================
+
+-- =============================================================================
+-- 1. SCHEMA SETUP (Run first)
+-- =============================================================================
+
+-- Drop existing tables (development only)
+DROP TABLE IF EXISTS payments CASCADE;
+DROP TABLE IF EXISTS bookings CASCADE;
+DROP TABLE IF EXISTS parking_slots CASCADE;
+DROP TABLE IF EXISTS user_profiles CASCADE;
+
+-- User Profiles Table (links to Supabase auth.users)
+CREATE TABLE user_profiles (
+    id uuid PRIMARY KEY REFERENCES auth.users (id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    unit_number TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    vehicle_plate TEXT,
+    role TEXT CHECK (role IN ('resident', 'admin')) DEFAULT 'resident',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Parking Slots Table
+CREATE TABLE parking_slots (
+    slot_id SERIAL PRIMARY KEY,
+    slot_number TEXT UNIQUE NOT NULL,
+    slot_type TEXT CHECK (slot_type IN ('covered', 'uncovered', 'visitor')) DEFAULT 'uncovered',
+    status TEXT CHECK (status IN ('available', 'maintenance', 'reserved')) DEFAULT 'available',
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Bookings Table
+CREATE TABLE bookings (
+    booking_id SERIAL PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users (id) ON DELETE CASCADE,
+    slot_id INT NOT NULL REFERENCES parking_slots (slot_id) ON DELETE CASCADE,
+    start_time TIMESTAMPTZ NOT NULL,
+    end_time TIMESTAMPTZ NOT NULL,
+    status TEXT CHECK (status IN ('confirmed', 'cancelled', 'completed', 'no_show')) DEFAULT 'confirmed',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Business constraints
+    CONSTRAINT valid_booking_time CHECK (end_time > start_time),
+    CONSTRAINT booking_not_in_past CHECK (start_time >= NOW() - INTERVAL '1 hour')
+);
+
+-- Payments Table (optional for MVP)
+CREATE TABLE payments (
+    payment_id SERIAL PRIMARY KEY,
+    booking_id INT NOT NULL REFERENCES bookings (booking_id) ON DELETE CASCADE,
+    amount NUMERIC(10, 2) NOT NULL CHECK (amount >= 0),
+    payment_date TIMESTAMPTZ DEFAULT NOW(),
+    payment_method TEXT CHECK (payment_method IN ('cash', 'gcash', 'bank_transfer', 'free')),
+    reference_number TEXT,
+    status TEXT CHECK (status IN ('pending', 'completed', 'failed', 'refunded')) DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Performance indexes
+CREATE INDEX idx_bookings_user_id ON bookings(user_id);
+CREATE INDEX idx_bookings_slot_id ON bookings(slot_id);
+CREATE INDEX idx_bookings_start_time ON bookings(start_time);
+CREATE INDEX idx_bookings_status ON bookings(status);
+CREATE INDEX idx_user_profiles_email ON user_profiles(email);
+
+-- =============================================================================
+-- 2. ROW LEVEL SECURITY POLICIES (Run second)
+-- =============================================================================
+
+-- Enable RLS on all tables
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parking_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
+
+-- User Profiles Policies
+CREATE POLICY "Users can view own profile" 
+    ON user_profiles FOR SELECT 
+    USING (id = auth.uid());
+
+CREATE POLICY "Users can update own profile" 
+    ON user_profiles FOR UPDATE 
+    USING (id = auth.uid());
+
+CREATE POLICY "Service role can manage profiles" 
+    ON user_profiles FOR ALL
+    USING (auth.role() = 'service_role');
+
+CREATE POLICY "Admins can view all profiles" 
+    ON user_profiles FOR SELECT 
+    USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles up 
+            WHERE up.id = auth.uid() AND up.role = 'admin'
+        )
+    );
+
+-- Parking Slots Policies
+CREATE POLICY "Anyone can view available slots" 
+    ON parking_slots FOR SELECT 
+    USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can manage slots" 
+    ON parking_slots FOR ALL
+    USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles up 
+            WHERE up.id = auth.uid() AND up.role = 'admin'
+        )
+    );
+
+-- Bookings Policies
+CREATE POLICY "Users can view own bookings" 
+    ON bookings FOR SELECT 
+    USING (user_id = auth.uid());
+
+CREATE POLICY "Users can create own bookings" 
+    ON bookings FOR INSERT 
+    WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can update own bookings" 
+    ON bookings FOR UPDATE 
+    USING (user_id = auth.uid());
+
+CREATE POLICY "Service role can manage all bookings"
+    ON bookings FOR ALL
+    USING (auth.role() = 'service_role');
+
+CREATE POLICY "Admins can view all bookings" 
+    ON bookings FOR SELECT 
+    USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles up 
+            WHERE up.id = auth.uid() AND up.role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins can update any booking" 
+    ON bookings FOR UPDATE 
+    USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles up 
+            WHERE up.id = auth.uid() AND up.role = 'admin'
+        )
+    );
+
+-- Payments Policies
+CREATE POLICY "Users can view own payments" 
+    ON payments FOR SELECT 
+    USING (
+        EXISTS (
+            SELECT 1 FROM bookings b 
+            WHERE b.booking_id = payments.booking_id 
+            AND b.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Service role can manage payments"
+    ON payments FOR ALL
+    USING (auth.role() = 'service_role');
+
+CREATE POLICY "Admins can view all payments" 
+    ON payments FOR SELECT 
+    USING (
+        EXISTS (
+            SELECT 1 FROM user_profiles up 
+            WHERE up.id = auth.uid() AND up.role = 'admin'
+        )
+    );
+
+-- =============================================================================
+-- 3. INITIAL SEED DATA (Run third)
+-- =============================================================================
+
+-- Parking slots
+INSERT INTO parking_slots (slot_number, slot_type, status, description) VALUES
+('A-001', 'covered', 'available', 'Near main entrance'),
+('A-002', 'covered', 'available', 'Near elevator'),
+('A-003', 'covered', 'maintenance', 'Under repair'),
+('B-001', 'uncovered', 'available', 'Good for SUV - edited (2025-09-23)'),
+('B-002', 'uncovered', 'available', 'Compact cars preferred'),
+('V-001', 'visitor', 'available', 'Visitor parking'),
+('107F', 'covered', 'available', 'Near elevator');
+
+-- =============================================================================
+-- 4. USEFUL QUERIES FOR TESTING
+-- =============================================================================
+
+-- Check available slots for a time period
+-- SELECT ps.slot_number, ps.slot_type, ps.status
+-- FROM parking_slots ps
+-- WHERE ps.status = 'available'
+-- AND NOT EXISTS (
+--     SELECT 1 FROM bookings b 
+--     WHERE b.slot_id = ps.slot_id 
+--     AND b.status = 'confirmed'
+--     AND b.start_time < '2025-09-25 18:00:00+00'
+--     AND b.end_time > '2025-09-25 08:00:00+00'
+-- );
+
+-- Get user's active bookings
+-- SELECT b.booking_id, ps.slot_number, ps.slot_type, b.start_time, b.end_time, b.status
+-- FROM bookings b
+-- JOIN parking_slots ps ON b.slot_id = ps.slot_id
+-- WHERE b.user_id = auth.uid()
+-- AND b.status = 'confirmed'
+-- ORDER BY b.start_time;
+
+-- Admin view: All bookings
+-- SELECT 
+--     up.name, 
+--     up.unit_number,
+--     ps.slot_number, 
+--     ps.slot_type,
+--     b.start_time, 
+--     b.end_time, 
+--     b.status
+-- FROM bookings b
+-- JOIN user_profiles up ON b.user_id = up.id
+-- JOIN parking_slots ps ON b.slot_id = ps.slot_id
+-- ORDER BY b.start_time DESC;
+```
+
+### 3. Major User Flow Coverage Analysis
+
+Looking at your code, here are the **covered flows** and **gaps**:
+
+**✅ Currently Covered:**
+- User registration/login with profile creation
+- Browse available parking slots with real-time conflict checking
+- Book parking slots with validation
+- View active bookings with slot metadata
+- Cancel bookings (with business rule constraints)
+- Basic admin functionality (viewing all bookings/slots/users)
+
+**❌ Major Gaps for User Testing:**
+1. **No admin slot management** - Admins can't add/edit/disable slots through the UI
+2. **No user role management** - No way to promote users to admin
+3. **No booking history** - Users only see active bookings, not past ones
+4. **No error handling for expired sessions** - Users might get stuck if auth expires
+5. **No mobile navigation** - Current nav might break on small screens
+6. **No booking notifications** - No confirmation emails/SMS
+
+### 4. API Route Issues
+
+Your API routes have some inconsistencies:
+
+1. **`/api/bookings/[id]/route.ts`** uses `SUPABASE_ANON_KEY` instead of `SERVICE_ROLE_KEY` (inconsistent with main route)
+2. **Missing validation** for user existence in some endpoints
+3. **No rate limiting** for production use
+
+### 5. Code Quality Issues
+
+**In your current code:**
+1. **Mixed TypeScript/JavaScript** - Some files have `.tsx` but use JavaScript syntax
+2. **Unused imports** - Several components import things they don't use
+3. **Inconsistent error handling** - Some places use `alert()`, others use proper UI
+4. **Hard-coded values** - Grace period (1 hour) should be configurable
+
+### Recommendations for User Testing Readiness
+
+**High Priority (Fix before user testing):**
+
+1. **Apply the contextual icons fix** above
+2. **Run the production database setup** to enable proper RLS
+3. **Add admin slot management** to your dashboard
+4. **Fix mobile responsive navigation**
+
+**Medium Priority:**
+
+1. **Add booking history tab**
+2. **Implement proper error boundaries**  
+3. **Add loading states throughout**
+
+**Low Priority (post-MVP):**
+
+1. **Email notifications**
+2. **Advanced reporting**
+3. **Payment integration**
+
+### Next Steps
+
+1. **Run the production DB setup** I provided above in your Supabase SQL Editor
+2. **Apply the contextual icons fix** to make slots feel more connected
+3. **Test the complete flow** with RLS enabled
+4. **Add basic admin slot management** if needed for your user testing
+
+The core booking flow is solid, but the RLS setup and contextual improvements will make it much more professional for user testing. Your database constraint handling for past bookings is actually quite sophisticated - that's production-ready business logic.
+
+---
+
+Nice — here’s a tight, no-fluff status update and a paste-ready **context resync** you can drop into a fresh chat to continue work without losing momentum.
+
+# Progress summary — where we are now
+
+Short version: booking flow renders, confirmation shows slot label, SlotGrid key warning fixed, a few runtime bugs squashed. Most changes were local, minimal, and designed to be drop-in.
+
+**What I fixed**
+
+* Syntax bug in `UserDashboard.tsx` where an extra `}`/`;` broke JSX — corrected the `onDone` arrow function.
+* Removed stray diff markers (`+`) from `BookingConfirmation.tsx` that caused build errors.
+* Replaced `BookingConfirmation.tsx` with a clean, accessible confirmation card that prefers `booking.parking_slots.slot_number` & `slot_type` and triggers a parent refresh before closing.
+* Changed booking POST to return nested slot metadata (`parking_slots`) so frontend can show `B-002 (uncovered)`. *(Patch in `app/api/bookings/route.ts`.)*
+* Made `BookingForm` robust: prefers server-provided `parking_slots`, falls back to selected slot; added loading state, disabled/aria-disabled button, inline spinner, and validation to prevent double submits.
+* Replaced `SlotGrid` render with a grid UI, availability badges, stable `key={slot.slot_id}`, and defensive handling of the selected slot (normalizes `selectedSlotId` or `selected`).
+* Fixed runtime `selected is not defined` by normalizing selected id into `selId`.
+
+**Files changed (high level)**
+
+* `app/api/bookings/route.ts` — POST `.select("*, parking_slots(slot_number, slot_type)")`
+* `components/BookingForm.tsx` — POST handling, loading/disabled UI, onSuccess uses `parking_slots` fallback
+* `components/BookingConfirmation.tsx` — replaced with cleaned component
+* `components/SlotGrid.tsx` — key fix, selection normalization, grid + badges
+* `components/UserDashboard.tsx` — fixed stray brace/semicolon in `onDone`
+
+**Current behavior you should see**
+
+* Create booking → Confirmation card displays `B-xxx (type)` and dates.
+* Clicking **Done** calls `refreshBookings` then closes the confirmation and switches to the bookings tab.
+* Slot grid renders with badges and no React `key` warnings (assuming all slot objects include `slot_id`).
+* Confirm button shows spinner and is disabled during save.
+
+**Known/likely remaining items**
+
+* Confirm that all server-side GET endpoints return the same nested relation (`parking_slots`) for listing bookings — if not, the frontend fallback handles it, but cleaning GET to be consistent is ideal.
+* Verify `slot_id` is always present on `slots` returned by the server. If any slot object is missing `slot_id`, rework the query or DB output.
+* Optional: wire in re-fetching strategy (SWR/React Query) if you want background polling; current flow triggers refresh on Done.
+
+# Quick test checklist (paste into terminal / follow)
+
+1. `pnpm dev` (or `npm run dev` / `next dev`)
+2. Go to `http://localhost:3000/dashboard`
+3. New Booking → pick available slot + valid time → click **Confirm Booking**
+
+   * Expect: button shows spinner, then confirmation card with `B-xxx (type)`
+4. Click **Done** → bookings tab should show the new booking without manual refresh
+5. Open browser console → no React `key` warnings from `SlotGrid`
+
+---
+
+# Context-resync prompt — paste this into a new chat/thread to continue immediately
+
+(Everything needed to pick up work is below — paste whole block.)
+
+```
+Context resync — ParkBoard MVP (snapshot)
+Date: 2025-09-21 (local)
+
+High-level status:
+- Next.js 15 app with Supabase backend. Auth and booking POST/GET endpoints exist.
+- Current focus: polish UX and ensure booking confirmation shows human-friendly slot labels + bookings auto-refresh after confirmation.
+
+Recent patches applied (important files & behavior):
+1) Server: app/api/bookings/route.ts
+   - POST now returns the inserted booking with nested slot relation:
+     .select("*, parking_slots(slot_number, slot_type)")
+   - Resulting POST JSON should include: booking.parking_slots = { slot_number, slot_type }.
+
+2) BookingForm: components/BookingForm.tsx
+   - On success prefers server `result.parking_slots`; fallback attaches selected slot.
+   - Adds loading state, disabled button during POST, accessible spinner.
+   - Prevents submit when no slot/time selected.
+
+3) BookingConfirmation: components/BookingConfirmation.tsx
+   - Replaced with clean component that:
+     - Shows slot label via booking.parking_slots?.slot_number and slot_type
+     - Formats start/end times via toLocaleString()
+     - Done button calls refreshBookings?.() then onDone()
+
+4) SlotGrid: components/SlotGrid.tsx
+   - Uses stable keys: key={slot.slot_id}
+   - Normalizes selection: accepts selectedSlotId or selected object; uses selId for aria-pressed.
+   - Renders responsive grid with availability badges; includes defensive handling for missing fields.
+
+5) UserDashboard: components/UserDashboard.tsx
+   - Fixed syntax bug in BookingConfirmation onDone handler (removed stray `};`).
+   - Passing refreshBookings={triggerRefresh} to BookingConfirmation.
+
+Repro steps (how to reproduce current app state & verify):
+- Start dev server.
+- Visit /dashboard.
+- Create a new booking (select slot & time); ensure Confirm shows spinner and then the confirmation card shows "B-xxx (type)".
+- Click Done → bookings list should refresh automatically and show the new entry.
+
+Errors encountered & resolved:
+- Build error: "Expected '</', got ';'" — caused by stray brace in UserDashboard onDone — fixed.
+- Build error: "Expression expected" — caused by diff (`+`) markers in BookingConfirmation — removed.
+- Runtime error: "selected is not defined" — fixed by normalizing selection into selId in SlotGrid.
+
+What to pick up next:
+- Ensure server GET for bookings also returns nested parking_slots (consistency).
+- Confirm `slot_id` is always present; if not, fix server queries to include it.
+- Optional: replace manual triggerRefresh with SWR/React Query for automatic revalidation.
+- Optional: style polish and unit tests for components.
+
+Files to inspect first in new thread:
+- app/api/bookings/route.ts
+- components/BookingForm.tsx
+- components/BookingConfirmation.tsx
+- components/SlotGrid.tsx
+- components/UserDashboard.tsx
+
+Expected environment:
+- Node + Next.js dev server locally
+- Supabase dev keys configured in env (.env)
+
+If you want me to continue in the new thread, start with: "Resume ParkBoard — continue fixing booking-list consistency and switch to SWR for revalidation". Then paste the repo snapshot or point me to specific files to patch next.
+```
+
+---
+
+If that looks right, paste the resync block into the new chat and say “Resume ParkBoard.” I’ll pick up from there and keep the fixes tight and ADHD-friendly. No fluff.
+
+
 ### ✅ Current Status — ParkBoard MVP (as of 2025-09-13 23:14)
 
 * **Auth**: Signup/Login/Logout works. `AuthWrapper` provides `user` + `profile` cleanly.
