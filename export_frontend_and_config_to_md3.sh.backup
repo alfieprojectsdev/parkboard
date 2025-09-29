@@ -1,0 +1,210 @@
+#!/bin/bash
+# =============================================================================
+# Script: export_frontend_and_config_to_md.sh (Security & Size Optimized)
+# Description: Export ONLY essential project code, excluding documentation,
+# API keys, and other sensitive/bulky content
+# =============================================================================
+
+OUTPUT_FILE="project_code_essential.md"
+
+# Clear previous output
+> "$OUTPUT_FILE"
+
+# Comprehensive exclusions for build artifacts and auto-generated code
+EXCLUDE_DIRS="node_modules|\.next|\.git|build|dist|coverage|\.turbo|\.vercel|\.swc|out|\.nuxt|\.output"
+
+# Also exclude common auto-generated files
+EXCLUDE_FILES="next-env\.d\.ts|\.d\.ts$"
+
+echo "# ParkBoard Project Code Export" >> "$OUTPUT_FILE"
+echo "Generated on: $(date)" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+echo "## Core Application Code" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Focus on App Router structure + your components + CSS
+find ./app ./components ./lib ./utils ./hooks ./contexts ./types ./styles -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.css" -o -name "*.scss" -o -name "*.sass" -o -name "*.less" \) ! -regex ".*\($EXCLUDE_DIRS\).*" ! -regex ".*\($EXCLUDE_FILES\).*" 2>/dev/null | sort | while read -r file; do
+    # Skip if file is likely auto-generated (check for common patterns)
+    if grep -q "This file was automatically generated" "$file" 2>/dev/null || \
+       grep -q "@generated" "$file" 2>/dev/null || \
+       grep -q "DO NOT EDIT" "$file" 2>/dev/null; then
+        continue
+    fi
+    
+    # Determine language for syntax highlighting
+    case "$file" in
+        *.css|*.scss|*.sass|*.less) lang="css" ;;
+        *) lang="typescript" ;;
+    esac
+    
+    echo "\`\`\`$lang" >> "$OUTPUT_FILE"
+    echo "// $file" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    cat "$file" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    echo '```' >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+done
+
+# CSS files in root or common locations
+echo "## CSS and Styling Files" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Look for CSS files in common locations
+CSS_LOCATIONS=("./globals.css" "./app/globals.css" "./src/globals.css" "./styles/globals.css" "./public/styles.css")
+
+for css_file in "${CSS_LOCATIONS[@]}"; do
+    if [[ -f $css_file ]]; then
+        echo '```css' >> "$OUTPUT_FILE"
+        echo "/* $css_file */" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat "$css_file" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo '```' >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+    fi
+done
+
+# Safe configuration files (exclude those with potential API keys)
+echo "## Safe Configuration Files" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Only include configs that are safe to share (no API keys)
+SAFE_CONFIGS=("next.config.js" "next.config.mjs" "tailwind.config.js" "tailwind.config.ts" "postcss.config.js" "tsconfig.json" "components.json" ".eslintrc.json" ".prettierrc")
+
+for cfg in "${SAFE_CONFIGS[@]}"; do
+    if [[ -f $cfg ]]; then
+        # Determine file extension for syntax highlighting
+        case "$cfg" in
+            *.json) lang="json" ;;
+            *.ts) lang="typescript" ;;
+            *.css) lang="css" ;;
+            *) lang="javascript" ;;
+        esac
+        
+        echo "\`\`\`$lang" >> "$OUTPUT_FILE"
+        echo "// $cfg" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat "$cfg" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo '```' >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+    fi
+done
+
+# Environment template (sanitized)
+echo "## Environment Configuration Template" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+if [[ -f .env.example ]]; then
+    echo '```bash' >> "$OUTPUT_FILE"
+    echo "// .env.example (template only)" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    cat .env.example >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    echo '```' >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+elif [[ -f .env.local ]]; then
+    echo '```bash' >> "$OUTPUT_FILE"
+    echo "// .env structure (keys redacted)" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    # Show variable names but redact values
+    grep -E "^[A-Z_]+" .env.local | sed 's/=.*/=***REDACTED***/' >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    echo '```' >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+fi
+
+# Essential documentation only (exclude verbose docs)
+echo "## Essential Documentation" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Only include concise, technical documentation
+ESSENTIAL_DOCS=("README.md" "SETUP.md" "DEPLOYMENT.md" "API.md")
+
+for doc in "${ESSENTIAL_DOCS[@]}"; do
+    if [[ -f $doc ]]; then
+        # Check file size - skip if too large (>50KB)
+        size=$(stat -c%s "$doc" 2>/dev/null || stat -f%z "$doc" 2>/dev/null)
+        if [[ $size -gt 51200 ]]; then
+            echo "// $doc (skipped - too large: ${size} bytes)" >> "$OUTPUT_FILE"
+            echo "" >> "$OUTPUT_FILE"
+            continue
+        fi
+        
+        echo '```markdown' >> "$OUTPUT_FILE"
+        echo "// $doc" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        cat "$doc" >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+        echo '```' >> "$OUTPUT_FILE"
+        echo "" >> "$OUTPUT_FILE"
+    fi
+done
+
+# Database schema only (exclude seed data and large docs)
+echo "## Database Schema" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+# Core schema files only
+SCHEMA_FILES=("schema.sql" "rls_policies.sql")
+
+for schema in "${SCHEMA_FILES[@]}"; do
+    # Check multiple possible locations
+    for path in "./$schema" "./db/$schema" "./database/$schema" "./supabase/$schema"; do
+        if [[ -f $path ]]; then
+            echo '```sql' >> "$OUTPUT_FILE"
+            echo "-- $path" >> "$OUTPUT_FILE"
+            echo "" >> "$OUTPUT_FILE"
+            cat "$path" >> "$OUTPUT_FILE"
+            echo "" >> "$OUTPUT_FILE"
+            echo '```' >> "$OUTPUT_FILE"
+            echo "" >> "$OUTPUT_FILE"
+            break  # Only include first found instance
+        fi
+    done
+done
+
+# Package.json essentials only
+echo "## Package Dependencies" >> "$OUTPUT_FILE"
+echo "" >> "$OUTPUT_FILE"
+
+if [[ -f package.json ]]; then
+    echo '```json' >> "$OUTPUT_FILE"
+    echo "// package.json (essentials only)" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+    # Extract only the essential parts, exclude metadata
+    jq '{name, version, scripts, dependencies, devDependencies}' package.json 2>/dev/null || {
+        echo "// jq not available, showing full package.json"
+        cat package.json
+    }
+    echo "" >> "$OUTPUT_FILE"
+    echo '```' >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+fi
+
+echo "Export complete: $OUTPUT_FILE"
+echo "File size: $(du -h "$OUTPUT_FILE" | cut -f1)"
+
+# Show what was included for verification
+echo ""
+echo "Files included:"
+echo "✅ TypeScript/JavaScript files from: ./app ./components ./lib ./utils ./hooks ./contexts ./types ./styles"
+echo "✅ CSS/SCSS/Sass files from all directories"
+echo "✅ Global CSS files (globals.css from common locations)"
+echo "✅ Safe configuration files: next.config.js, tailwind.config.js, tsconfig.json, etc."
+echo "✅ Core database schema files"
+echo "✅ Package dependencies summary"
+echo ""
+echo "Files excluded for security:"
+echo "❌ .env.local (contains API keys)"
+echo "❌ .env files (except .env.example template)"
+echo "❌ Large documentation files (>50KB)"
+echo "❌ Auto-generated files"
+echo "❌ Build artifacts and node_modules"
+
+# Security reminder
+echo ""
+echo "🔒 Security Note: This export excludes sensitive files with API keys."
+echo "   Always review the output before sharing or committing to version control."

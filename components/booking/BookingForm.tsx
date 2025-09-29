@@ -1,30 +1,74 @@
-// components/BookingForm.tsx - Handle slot booking creation with network resilience
+// =====================================================
+// File: components/booking/BookingForm.tsx
+// Updated with consistent error handling
+// Updated with booking rules validation
+// =====================================================
 "use client";
 
 import { useState } from 'react';
 import TimeRangePicker from './TimeRangePicker';
 import SlotGrid from './SlotGrid';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from './AuthWrapper';
+import { useAuth } from '@/components/auth/AuthWrapper';
+import { BOOKING_RULES } from '@/lib/constants';
+import ErrorDisplay, { SuccessMessage } from '@/components/common/ErrorDisplay';
 
-export default function BookingForm({ onSuccess }) {
+export default function BookingForm({ onSuccess }: { onSuccess: (booking: any) => void }) {
   const { profile, user } = useAuth();
   const [selectedTimeRange, setSelectedTimeRange] = useState({ start: '', end: '' });
-  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [selectedSlot, setSelectedSlot] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const validateBooking = () => {
+    if (!selectedSlot) {
+      setError('Please select a parking slot.');
+      return false;
+    }
+    
+    if (!selectedTimeRange.start || !selectedTimeRange.end) {
+      setError('Please select both start and end times.');
+      return false;
+    }
+
+    const start = new Date(selectedTimeRange.start);
+    const end = new Date(selectedTimeRange.end);
+    const now = new Date();
+    
+    // Check duration limits
+    const durationHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    
+    if (durationHours < BOOKING_RULES.MIN_DURATION_HOURS) {
+      setError(`Minimum booking duration is ${BOOKING_RULES.MIN_DURATION_HOURS} hour(s)`);
+      return false;
+    }
+    
+    if (durationHours > BOOKING_RULES.MAX_DURATION_HOURS) {
+      setError(`Maximum booking duration is ${BOOKING_RULES.MAX_DURATION_HOURS} hours`);
+      return false;
+    }
+    
+    // Check advance booking limit
+    const daysInAdvance = (start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    
+    if (daysInAdvance > BOOKING_RULES.MAX_ADVANCE_DAYS) {
+      setError(`Cannot book more than ${BOOKING_RULES.MAX_ADVANCE_DAYS} days in advance`);
+      return false;
+    }
+    
+    return true;
+  };
+
   const handleBooking = async () => {
-    // Prevent accidental submits: both slot + time required
-    if (!selectedSlot || !selectedTimeRange.start || !selectedTimeRange.end) {
-      setError('Please select a slot and time range.');
+    setError('');
+    setSuccess('');
+
+    if (!validateBooking()) {
       return;
     }
 
     setLoading(true);
-    setError('');
-    setSuccess('');
 
     try {
       const res = await fetch('/api/bookings', {
@@ -33,7 +77,7 @@ export default function BookingForm({ onSuccess }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: profile.id,
+          user_id: profile?.id,
           slot_id: selectedSlot.slot_id,
           start_time: selectedTimeRange.start,
           end_time: selectedTimeRange.end,
@@ -42,15 +86,12 @@ export default function BookingForm({ onSuccess }) {
         }),
       });
 
-      // Check if the response is ok
       if (!res.ok) {
-        // Try to get error message from response
         let errorMessage = 'Booking failed';
         try {
           const errorData = await res.json();
           errorMessage = errorData.error || errorMessage;
         } catch {
-          // If we can't parse the error response, use status text
           errorMessage = `Booking failed: ${res.status} ${res.statusText}`;
         }
         throw new Error(errorMessage);
@@ -58,7 +99,6 @@ export default function BookingForm({ onSuccess }) {
 
       const result = await res.json();
 
-      // Prefer the server-provided relation if available; otherwise attach selectedSlot info.
       const bookingResult =
         result && result.parking_slots
           ? result
@@ -70,22 +110,28 @@ export default function BookingForm({ onSuccess }) {
               },
             };
 
-      setSuccess('Booking successful!');
-      onSuccess(bookingResult);
-
-      // Reset form
+      setSuccess('Booking successful! Redirecting...');
+      
       setSelectedSlot(null);
       setSelectedTimeRange({ start: '', end: '' });
+      
+      setTimeout(() => {
+        onSuccess(bookingResult);
+      }, 1500);
+
     } catch (err: any) {
       console.error('Booking error:', err);
       
-      // Handle different types of errors
       if (err.message.includes('fetch failed') || err.message.includes('TypeError')) {
         setError('Network connection error. Please check your internet connection and try again.');
       } else if (err.message.includes('already booked')) {
         setError('This slot is already booked for the selected time. Please choose a different slot or time.');
+      } else if (err.message.includes('reserved for another')) {
+        setError('This slot is reserved for another resident. Please select a different slot.');
       } else if (err.message.includes('500')) {
         setError('Server error occurred. Please try again in a moment.');
+      } else if (err.message.includes('past')) {
+        setError('Cannot book slots in the past. Please select a future time.');
       } else {
         setError(err?.message || 'An unexpected error occurred. Please try again.');
       }
@@ -94,25 +140,16 @@ export default function BookingForm({ onSuccess }) {
     }
   };
 
+  const clearError = () => setError('');
+  const clearSuccess = () => setSuccess('');
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-4">Book a Parking Slot</h2>
         
-        {/* Network Status Indicator */}
-        {error && error.includes('Network') && (
-          <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <div>
-                <p className="text-yellow-800 font-medium">Network Issue Detected</p>
-                <p className="text-yellow-700 text-sm">Slots are shown as available due to connectivity issues. Your booking may still work.</p>
-              </div>
-            </div>
-          </div>
-        )}
+        <ErrorDisplay error={error} onRetry={clearError} className="mb-4" />
+        <SuccessMessage message={success} onDismiss={clearSuccess} className="mb-4" />
         
         <TimeRangePicker value={selectedTimeRange} onChange={setSelectedTimeRange} />
       </div>
@@ -144,42 +181,12 @@ export default function BookingForm({ onSuccess }) {
             aria-disabled={loading || !selectedSlot}
           >
             {loading && (
-              <svg className="animate-spin h-4 w-4 mr-2 border-2 border-white/50 rounded-full" viewBox="0 0 24 24" aria-hidden>
+              <svg className="animate-spin h-4 w-4 mr-2 border-2 border-white border-t-transparent rounded-full" viewBox="0 0 24 24" aria-hidden>
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" fill="none" />
               </svg>
             )}
             {loading ? 'Saving booking...' : 'Confirm Booking'}
           </button>
-        </div>
-      )}
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <div>
-              <strong>Error:</strong> {error}
-              {error.includes('Network') && (
-                <div className="mt-2">
-                  <button 
-                    onClick={handleBooking}
-                    disabled={loading}
-                    className="text-sm underline hover:no-underline"
-                  >
-                    Try again
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {success && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg">
-          <strong>Success:</strong> {success}
         </div>
       )}
     </div>
