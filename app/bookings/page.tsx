@@ -1,69 +1,58 @@
-// app/bookings/page.tsx
-import { supabase } from "@/lib/supabase";
-import AuthWrapper from "@/components/auth/AuthWrapper";
-import UserBookingsList from "@/components/booking/UserBookingsList";
+"use client";
 
-export default async function BookingsPage() {
-  // Get the currently logged-in user
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession();
+import { useAuth } from '@/components/auth/AuthWrapper';
+import AuthWrapper from '@/components/auth/AuthWrapper';
+import Navigation from '@/components/common/Navigation';
+import UserBookingsList from '@/components/booking/UserBookingsList';
+import Link from 'next/link';
 
-  if (sessionError) {
+function BookingsContent() {
+  const { profile, loading } = useAuth();
+
+  if (loading) {
     return (
-      <div className="p-8 text-red-600 font-bold">
-        ❌ Error fetching session
-        <pre>{JSON.stringify(sessionError, null, 2)}</pre>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
-
-  if (!session?.user) {
-    return <AuthWrapper />; // redirect or show login if not signed in
-  }
-
-  const userId = session.user.id;
-
-  // Fetch the user's bookings
-  const { data: bookings, error } = await supabase
-    .from("bookings")
-    .select("*")
-    .eq("user_id", userId)
-    .order("start_time", { ascending: true });
-
-  if (error) {
-    return (
-      <div className="p-8 text-red-600 font-bold">
-        ❌ Supabase Error
-        <pre>{JSON.stringify(error, null, 2)}</pre>
-      </div>
-    );
-  }
-
-  // Handler for cancelling a booking
-  // TODO: refactor handleBooking and handleCancel later to use React state instead of window.location.reload() for smoother UX
-  const handleCancel = async (bookingId: string) => {
-    const { error } = await supabase
-      .from("bookings")
-      .update({ status: "cancelled" })
-      .eq("id", bookingId);
-
-    if (error) {
-      alert("Error cancelling booking: " + error.message);
-      return;
-    }
-
-    // Ideally, refetch bookings here; for now, simple page reload
-    // handleCancel updates the booking’s status to "cancelled"; 
-    // TODO: replace the window.location.reload() with a reactive state update 
-    window.location.reload();
-  };
 
   return (
-    <main className="p-8">
-      <h1 className="text-2xl font-bold mb-4">My Bookings</h1>
-      <UserBookingsList bookings={bookings} onCancel={handleCancel} />
+    <main className="max-w-4xl mx-auto px-4 py-8">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">My Bookings</h1>
+          <p className="text-gray-600 mt-2">Manage your parking reservations</p>
+        </div>
+        <Link 
+          href="/bookings/new"
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          New Booking
+        </Link>
+      </div>
+      
+      {profile ? (
+        <UserBookingsList userId={profile.id} />
+      ) : (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <p className="text-red-600">Unable to load profile. Please try refreshing the page.</p>
+        </div>
+      )}
     </main>
+  );
+}
+
+export default function BookingsPage() {
+  return (
+    <AuthWrapper>
+      <div className="min-h-screen bg-gray-50">
+        <Navigation />
+        <BookingsContent />
+      </div>
+    </AuthWrapper>
   );
 }

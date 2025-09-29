@@ -7,7 +7,6 @@ export function getSupabaseServerClient() {
   const supabaseKey = process.env.SUPABASE_ANON_KEY!;
 
   return createServerClient(supabaseUrl, supabaseKey, {
-    // NEW v0.7+ cookie API
     cookieOptions: {
       get: (name: string) => nextCookies().get(name)?.value ?? null,
       set: (name: string, value: string) => nextCookies().set(name, value),
