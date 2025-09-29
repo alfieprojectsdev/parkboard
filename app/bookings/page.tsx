@@ -1,7 +1,7 @@
 // app/bookings/page.tsx
 import { supabase } from "@/lib/supabase";
-import AuthWrapper from "@/components/AuthWrapper";
-import UserBookingsList from "@/components/UserBookingsList";
+import AuthWrapper from "@/components/auth/AuthWrapper";
+import UserBookingsList from "@/components/booking/UserBookingsList";
 
 export default async function BookingsPage() {
   // Get the currently logged-in user

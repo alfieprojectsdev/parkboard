@@ -1,11 +1,16 @@
-// components/UserDashboard.tsx - Main resident view with bookings and new booking flow
+// =====================================================
+// File: components/UserDashboard.tsx
+// Main resident view with bookings and new booking flow
+// Updated with MySlots component
+// =====================================================
 "use client";
 
 import { useState, useRef } from 'react';
-import UserBookingsList from './UserBookingsList';
-import BookingForm from './BookingForm';
-import BookingConfirmation from './BookingConfirmation';
-import { useAuth } from './AuthWrapper';
+import UserBookingsList from '@/components/booking/UserBookingsList';
+import BookingForm from '@/components/booking/BookingForm';
+import BookingConfirmation from '@/components/booking/BookingConfirmation';
+import MySlots from '@/components/dashboard/MySlots';
+import { useAuth } from '@/components/auth/AuthWrapper';
 
 export default function UserDashboard() {
   const [activeTab, setActiveTab] = useState('bookings');
@@ -13,7 +18,6 @@ export default function UserDashboard() {
   const [refreshKey, setRefreshKey] = useState(0);
   const { profile, loading } = useAuth();
 
-  // Guard for loading state and missing profile
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -36,9 +40,9 @@ export default function UserDashboard() {
     );
   }
 
-  const handleTabChange = (tab) => {
+  const handleTabChange = (tab: string) => {
     setActiveTab(tab);
-    setBookingConfirmed(null); // reset confirmation when switching tabs
+    setBookingConfirmed(null);
   };
 
   const triggerRefresh = () => setRefreshKey((k) => k + 1);
@@ -52,6 +56,9 @@ export default function UserDashboard() {
         </h1>
         <p className="text-gray-600">Unit {profile.unit_number}</p>
       </div>
+
+      {/* Show owned slots if user has any */}
+      <MySlots />
 
       {/* Tab navigation */}
       <div className="flex space-x-4 mb-6 border-b border-gray-200">

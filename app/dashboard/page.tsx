@@ -1,8 +1,8 @@
 // app/dashboard/page.js – Entry point for resident dashboard
 
-import AuthWrapper from "@/components/AuthWrapper";
-// import DevAuthWrapper from "@/components/DevAuthWrapper";
-import Navigation from "@/components/Navigation";
+import AuthWrapper from "@/components/auth/AuthWrapper";
+// import DevAuthWrapper from "@/components/auth/DevAuthWrapper";
+import Navigation from "@/components/common/Navigation";
 import UserDashboard from "@/components/UserDashboard";
 
 export const metadata = {

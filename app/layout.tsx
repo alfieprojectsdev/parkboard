@@ -1,4 +1,9 @@
+// =====================================================
+// File: app/layout.tsx
+// Updated with ErrorBoundary wrapper
+// =====================================================
 import './globals.css'
+import ErrorBoundary from '@/components/ErrorBoundary'
 
 export const metadata = {
   title: 'ParkBoard - Parking Management',
@@ -12,7 +17,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="bg-gray-50 text-gray-900">{children}</body>
+      <body className="bg-gray-50 text-gray-900">
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+      </body>
     </html>
   )
 }
