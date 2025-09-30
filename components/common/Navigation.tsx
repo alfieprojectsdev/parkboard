@@ -1,4 +1,4 @@
-// components/Navigation.tsx - Fixed encoding issue
+// components/common/Navigation.tsx
 "use client";
 
 import Link from 'next/link';
@@ -59,6 +59,12 @@ export default function Navigation() {
             >
               My Bookings
             </Link>
+            {/* <Link 
+              href="/donations" 
+              className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100"
+            >
+              Donations
+            </Link> */}
             {profile?.role === 'admin' && (
               <>
                 <Link 
@@ -81,36 +87,38 @@ export default function Navigation() {
                 </Link>
               </>
             )}
-            <div className="ml-4 flex items-center space-x-4">
-              {profile && (
-                <div className="text-sm text-gray-600">
-                  <span className="font-medium">{profile.name}</span>
-                  <span className="ml-1 text-gray-400">• Unit {profile.unit_number}</span>
+            
+            {/* User info and sign out */}
+            {profile && (
+              <div className="flex items-center space-x-3 ml-4 pl-4 border-l border-gray-200">
+                <div className="text-sm">
+                  <div className="font-medium text-gray-900">{profile.name}</div>
+                  <div className="text-gray-500">Unit {profile.unit_number}</div>
                 </div>
-              )}
-              <button
-                onClick={handleSignOut}
-                className="px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                Sign Out
-              </button>
-            </div>
+                <button
+                  onClick={handleSignOut}
+                  className="px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  Sign Out
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobile menu button */}
-          <div className="md:hidden flex items-center">
+          <div className="flex items-center md:hidden">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
             >
               <span className="sr-only">Open main menu</span>
-              {menuOpen ? (
+              {!menuOpen ? (
                 <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               ) : (
                 <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               )}
             </button>
@@ -118,16 +126,17 @@ export default function Navigation() {
         </div>
       </div>
 
-      {/* Mobile menu panel */}
+      {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-white border-b border-gray-200">
+        <div className="md:hidden border-t border-gray-200">
+          <div className="px-2 pt-2 pb-3 space-y-1">
             {profile && (
-              <div className="px-3 py-2 text-sm text-gray-600 border-b border-gray-100 mb-2">
-                <div className="font-medium">{profile.name}</div>
-                <div className="text-gray-400">Unit {profile.unit_number}</div>
+              <div className="px-3 py-2 mb-2 bg-gray-50 rounded-md">
+                <div className="text-sm font-medium text-gray-900">{profile.name}</div>
+                <div className="text-xs text-gray-500">Unit {profile.unit_number}</div>
               </div>
             )}
+            
             <Link
               href="/dashboard"
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
@@ -149,6 +158,13 @@ export default function Navigation() {
             >
               My Bookings
             </Link>
+            {/* <Link
+              href="/donations"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+              onClick={() => setMenuOpen(false)}
+            >
+              Donations
+            </Link> */}
             {profile?.role === 'admin' && (
               <>
                 <Link

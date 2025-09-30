@@ -7,8 +7,14 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/components/auth/AuthWrapper';
 import Navigation from '@/components/common/Navigation';
 
+interface AuthContext {
+  user: any;
+  profile: any;
+  loading: boolean;
+}
+
 export default function AdminDashboardContent() {
-  const { profile } = useAuth();
+  const { profile } = useAuth() as AuthContext; 
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalSlots: 0,

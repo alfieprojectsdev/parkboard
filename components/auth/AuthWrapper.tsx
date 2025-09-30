@@ -1,26 +1,70 @@
-// components/AuthWrapper.tsx - Enhanced with session expiry handling
+// components/auth/AuthWrapper.tsx
 "use client";
 
-import { useEffect, useState, createContext, useContext } from "react";
+import { useEffect, useState, createContext, useContext, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { User } from "@supabase/supabase-js";
 
-const AuthContext = createContext();
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
 
-export function useAuth() {
-  return useContext(AuthContext);
+interface Profile {
+  id: string;
+  name: string;
+  email: string;
+  unit_number: string;
+  phone?: string;
+  vehicle_plate?: string;
+  role: 'resident' | 'admin';
+  created_at: string;
+  updated_at: string;
 }
 
-export default function AuthWrapper({ children }) {
-  const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+export interface AuthContextType {
+  user: User | null;
+  profile: Profile | null;
+  loading: boolean;
+  sessionError: string | null;
+  refreshSession: () => Promise<any>;
+}
+
+// ============================================================================
+// CONTEXT SETUP
+// ============================================================================
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthWrapper');
+  }
+  return context;
+}
+
+// ============================================================================
+// AUTH WRAPPER COMPONENT
+// ============================================================================
+
+interface AuthWrapperProps {
+  children: ReactNode;
+}
+
+export default function AuthWrapper({ children }: AuthWrapperProps) {
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [sessionError, setSessionError] = useState(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const router = useRouter();
 
+  // ============================================================================
+  // INITIALIZE AUTH & SESSION MONITORING
+  // ============================================================================
   useEffect(() => {
-    let sessionCheckInterval;
+    let sessionCheckInterval: NodeJS.Timeout;
 
     const init = async () => {
       try {
@@ -84,6 +128,9 @@ export default function AuthWrapper({ children }) {
     };
   }, [router]);
 
+  // ============================================================================
+  // FETCH USER PROFILE
+  // ============================================================================
   useEffect(() => {
     const fetchProfile = async () => {
       if (user) {
@@ -92,16 +139,13 @@ export default function AuthWrapper({ children }) {
           const { data, error } = await supabase
             .from("user_profiles")
             .select("*")
-            .eq("id", user.id)  // Make sure this matches exactly
+            .eq("id", user.id)
             .single();
 
           if (error) {
             console.error("Profile fetch error:", error);
-            // If profile doesn't exist, redirect to profile setup
             if (error.code === 'PGRST116') {
-              console.log("Profile not found, consider redirecting to profile setup");
-              // You could redirect to a profile setup page here
-              // router.push('/profile/setup');
+              console.log("Profile not found - might need profile setup");
             }
             setProfile(null);
           } else {
@@ -124,7 +168,9 @@ export default function AuthWrapper({ children }) {
     fetchProfile();
   }, [user, router, loading]);
 
-  // Add a function to manually refresh session
+  // ============================================================================
+  // MANUAL SESSION REFRESH
+  // ============================================================================
   const refreshSession = async () => {
     try {
       const { data: { session }, error } = await supabase.auth.refreshSession();
@@ -138,7 +184,10 @@ export default function AuthWrapper({ children }) {
     }
   };
 
-  const value = { 
+  // ============================================================================
+  // CONTEXT VALUE
+  // ============================================================================
+  const value: AuthContextType = { 
     user, 
     profile, 
     loading: loading || profileLoading,
@@ -146,10 +195,14 @@ export default function AuthWrapper({ children }) {
     refreshSession
   };
 
+  // ============================================================================
+  // RENDER STATES
+  // ============================================================================
+
   // Show error state if there's a session error
   if (sessionError) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
           <h2 className="text-red-800 font-semibold mb-2">Session Error</h2>
           <p className="text-red-600 mb-4">{sessionError}</p>
@@ -167,42 +220,46 @@ export default function AuthWrapper({ children }) {
     );
   }
 
-  // Don't redirect if we're still loading the initial auth state
+  // Show loading state
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // If no user after loading is complete, don't render children
+  // Redirect to login if no user
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gray-50">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Redirecting to login...</p>
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="text-gray-600 mb-4">Redirecting to login...</p>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         </div>
       </div>
     );
   }
 
+  // Show profile loading state
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render children with context
   return (
     <AuthContext.Provider value={value}>
-      {profileLoading ? (
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-500">Loading profile...</p>
-          </div>
-        </div>
-      ) : (
-        children
-      )}
+      {children}
     </AuthContext.Provider>
   );
 }
