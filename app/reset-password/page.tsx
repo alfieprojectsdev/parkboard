@@ -71,55 +71,6 @@ export default function ResetPasswordPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <Card className="w-full max-w-md shadow-lg rounded-2xl">
-          <CardHeader>
-            <CardTitle className="text-center text-xl">Set New Password</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handlePasswordUpdate} className="space-y-4">
-              <Input
-                type="password"
-                placeholder="New Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-              <Input
-                type="password"
-                placeholder="Confirm New Password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-              
-              {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
-              )}
-              
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Updating password..." : "Update Password"}
-              </Button>
-            </form>
-            
-            <div className="mt-4 text-center">
-              <button
-                type="button"
-                onClick={() => router.push('/login')}
-                className="text-sm text-gray-600 hover:text-gray-800 underline"
-              >
-                Back to login
-              </button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-}screen bg-gray-50">
-        <Card className="w-full max-w-md shadow-lg rounded-2xl">
           <CardContent className="text-center p-8">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

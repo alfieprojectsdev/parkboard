@@ -24,3 +24,5 @@ ar.pelicano@phivolcs.dost.gov.ph
     "id": "28da30db-bcb1-4721-a40f-7fa4c2ac8e70",
     "name": "Admin User"
   }
+
+http://localhost:3000/fix-profile

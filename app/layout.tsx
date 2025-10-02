@@ -1,9 +1,10 @@
 // =====================================================
 // File: app/layout.tsx
-// Updated with ErrorBoundary wrapper
+// Updated with ErrorBoundary and ToastProvider
 // =====================================================
 import './globals.css'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { ToastProvider } from '@/components/common/ToastNotification'
 
 export const metadata = {
   title: 'ParkBoard - Parking Management',
@@ -19,7 +20,9 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-gray-50 text-gray-900">
         <ErrorBoundary>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </ErrorBoundary>
       </body>
     </html>
