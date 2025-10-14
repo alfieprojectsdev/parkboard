@@ -72,11 +72,12 @@ export default function RegisterPage() {
         }
 
         // Both registration and login succeeded
-        router.push('/slots')
+        router.push('/')
 
-      } catch (err: any) {
-        console.error('Registration error:', err)
-        setError(err.message)
+      } catch (err: unknown) {
+        const error = err as Error
+        console.error('Registration error:', error)
+        setError(error.message)
       } finally {
         setLoading(false)
       }
@@ -90,8 +91,17 @@ export default function RegisterPage() {
           <p className="text-sm text-gray-600">Join ParkBoard marketplace</p>
         </CardHeader>
         <CardContent>
+          {/* 🧪 MVP TESTING: Note about test users */}
+          <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+            <p className="text-xs font-semibold text-yellow-900 mb-2">MVP Testing Note:</p>
+            <div className="text-xs text-yellow-800">
+              <p>Test users (user1-user20@parkboard.test) are already available.</p>
+              <p className="mt-1">You can register a new account or use existing test credentials on the login page.</p>
+            </div>
+          </div>
+
           <form onSubmit={handleRegister} className="space-y-4">
-            
+
             {/* Name */}
             <div>
               <label htmlFor="name" className="block text-sm font-medium mb-1">

@@ -19,6 +19,7 @@
 # misc
 .DS_Store
 *.pem
+lib/client_secret_*.json
 
 # debug
 npm-debug.log*

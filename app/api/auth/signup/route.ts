@@ -251,7 +251,8 @@ export async function POST(req: NextRequest) {
         name,
         email,
         phone,
-        unit_number
+        unit_number,
+        community_code: 'LMR'  // Multi-tenant: Default to Lumiere community
       })
 
     if (profileError) {
@@ -330,7 +331,7 @@ export async function POST(req: NextRequest) {
       }
     })
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     // 🎓 LEARNING: Catch-all error handler
     // ------------------------------------------------------------------------
     // This catches ANY error not handled above:
@@ -338,19 +339,19 @@ export async function POST(req: NextRequest) {
     // - JSON parse errors (malformed request)
     // - Unexpected exceptions
     //
-    // Why "error: any"?
+    // Why "error: unknown"?
     // - JavaScript errors can be anything (Error object, string, number, etc.)
     // - TypeScript can't know what will be thrown
-    // - "any" type allows us to handle whatever comes
+    // - "unknown" type is safer than "any" - forces type checking
     //
-    // Why error.message || 'Signup failed'?
+    // Why (error as Error).message || 'Signup failed'?
     // - error might not have a message property
     // - Fallback to generic message if error is weird
     // - Prevents returning undefined or [object Object]
     // ------------------------------------------------------------------------
     console.error('Signup API error:', error)
     return NextResponse.json(
-      { error: error.message || 'Signup failed' },
+      { error: (error as Error).message || 'Signup failed' },
       { status: 500 }
     )
   }

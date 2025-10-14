@@ -1,0 +1,287 @@
+-- ============================================================================
+-- PARKBOARD - REFINED MVP SCHEMA
+-- Based on critical analysis and design decisions
+-- ============================================================================
+
+-- Enable extension for timestamp range overlap checking
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+-- Clean slate (run this in Supabase SQL Editor)
+DROP TABLE IF EXISTS bookings CASCADE;
+DROP TABLE IF EXISTS parking_slots CASCADE;
+DROP TABLE IF EXISTS user_profiles CASCADE;
+
+-- ============================================================================
+-- TABLE 1: USER PROFILES
+-- Extends auth.users with business data
+-- ============================================================================
+
+CREATE TABLE user_profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  unit_number TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE user_profiles IS 'User business data - extends Supabase auth.users';
+COMMENT ON COLUMN user_profiles.id IS 'Links to auth.users(id) - managed by Supabase Auth';
+COMMENT ON COLUMN user_profiles.phone IS 'Contact number for bookings (no historical tracking needed)';
+COMMENT ON COLUMN user_profiles.unit_number IS 'Condo unit number for user identification';
+
+-- ============================================================================
+-- TABLE 2: PARKING SLOTS
+-- The "products" being rented
+-- ============================================================================
+
+CREATE TABLE parking_slots (
+  slot_id SERIAL PRIMARY KEY,
+  owner_id UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
+  slot_number TEXT NOT NULL UNIQUE,
+  slot_type TEXT DEFAULT 'covered',
+  description TEXT,
+  price_per_hour DECIMAL(10,2) NOT NULL CHECK (price_per_hour > 0),
+  status TEXT DEFAULT 'active' CHECK (status IN (
+    'active',      -- Available for booking (if no conflicts)
+    'maintenance', -- Physically unavailable (admin set)
+    'disabled'     -- Removed from marketplace (admin set)
+  )),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+COMMENT ON TABLE parking_slots IS 'Parking slots available for rent';
+COMMENT ON COLUMN parking_slots.owner_id IS 'NULL = condo-owned/admin-managed slot';
+COMMENT ON COLUMN parking_slots.slot_number IS 'Human-readable identifier (A-10, B-5, etc.)';
+COMMENT ON COLUMN parking_slots.slot_type IS 'Physical characteristic - optional, all covered in Lumiere';
+COMMENT ON COLUMN parking_slots.status IS 'Administrative status - NOT derived from bookings';
+
+-- ============================================================================
+-- TABLE 3: BOOKINGS
+-- Junction table: connects users to slots with time ranges
+-- ============================================================================
+
+CREATE TABLE bookings (
+  booking_id SERIAL PRIMARY KEY,
+  slot_id INT NOT NULL REFERENCES parking_slots(slot_id) ON DELETE CASCADE,
+  renter_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  total_price DECIMAL(10,2) NOT NULL CHECK (total_price > 0),
+  status TEXT DEFAULT 'pending' CHECK (status IN (
+    'pending',    -- Awaiting confirmation
+    'confirmed',  -- Active booking
+    'cancelled',  -- Cancelled by user or owner
+    'completed',  -- Booking ended
+    'no_show'     -- Renter didn't show up
+  )),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  
+  -- Constraint: end must be after start
+  CONSTRAINT valid_time_range CHECK (end_time > start_time),
+  
+  -- Constraint: prevent overlapping bookings for same slot
+  CONSTRAINT no_overlap EXCLUDE USING gist (
+    slot_id WITH =,
+    tstzrange(start_time, end_time) WITH &&
+  ) WHERE (status != 'cancelled')
+);
+
+COMMENT ON TABLE bookings IS 'Booking transactions - users rent slots for time periods';
+COMMENT ON COLUMN bookings.status IS 'Booking lifecycle state';
+COMMENT ON CONSTRAINT no_overlap ON bookings IS 'Prevents double-booking (ignores cancelled bookings)';
+
+-- ============================================================================
+-- INDEXES
+-- Query optimization
+-- ============================================================================
+
+-- User lookups
+CREATE INDEX idx_user_profiles_email ON user_profiles(email);
+
+-- Slot queries (most common: find available slots)
+CREATE INDEX idx_slots_status ON parking_slots(status);
+CREATE INDEX idx_slots_owner ON parking_slots(owner_id);
+CREATE INDEX idx_slots_available_combo ON parking_slots(status, price_per_hour) 
+  WHERE status = 'active';
+
+-- Booking queries
+CREATE INDEX idx_bookings_slot ON bookings(slot_id);
+CREATE INDEX idx_bookings_renter ON bookings(renter_id);
+CREATE INDEX idx_bookings_status ON bookings(status);
+CREATE INDEX idx_bookings_time_range ON bookings USING gist (tstzrange(start_time, end_time));
+
+-- ============================================================================
+-- ROW LEVEL SECURITY (RLS)
+-- Security policies
+-- ============================================================================
+
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE parking_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------------------
+-- USER_PROFILES POLICIES
+-- ---------------------------------------------------------------------------
+
+-- Anyone can read profiles (needed for contact info in bookings)
+CREATE POLICY "public_read_profiles" ON user_profiles
+  FOR SELECT
+  USING (true);
+
+-- Users can only update their own profile
+CREATE POLICY "users_update_own_profile" ON user_profiles
+  FOR UPDATE
+  USING (auth.uid() = id);
+
+-- Users can only insert their own profile
+CREATE POLICY "users_insert_own_profile" ON user_profiles
+  FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+-- ---------------------------------------------------------------------------
+-- PARKING_SLOTS POLICIES
+-- ---------------------------------------------------------------------------
+
+-- Anyone can view slots (public marketplace)
+CREATE POLICY "public_read_slots" ON parking_slots
+  FOR SELECT
+  USING (true);
+
+-- Owners can manage their own slots
+CREATE POLICY "owners_manage_own_slots" ON parking_slots
+  FOR ALL
+  USING (auth.uid() = owner_id);
+
+-- Anyone can create slots (becomes owner)
+CREATE POLICY "users_create_slots" ON parking_slots
+  FOR INSERT
+  WITH CHECK (auth.uid() = owner_id OR owner_id IS NULL);
+
+-- TODO: Add admin policy for condo-owned slots (owner_id IS NULL)
+-- This will require adding a 'role' column to user_profiles
+
+-- ---------------------------------------------------------------------------
+-- BOOKINGS POLICIES
+-- ---------------------------------------------------------------------------
+
+-- Users see bookings where they're renter OR owner of the slot
+CREATE POLICY "users_see_relevant_bookings" ON bookings
+  FOR SELECT
+  USING (
+    auth.uid() = renter_id 
+    OR auth.uid() IN (
+      SELECT owner_id FROM parking_slots WHERE slot_id = bookings.slot_id
+    )
+  );
+
+-- Users can create bookings (as renter)
+CREATE POLICY "users_create_bookings" ON bookings
+  FOR INSERT
+  WITH CHECK (auth.uid() = renter_id);
+
+-- Users can update their own bookings (e.g., cancel)
+CREATE POLICY "renters_update_own_bookings" ON bookings
+  FOR UPDATE
+  USING (auth.uid() = renter_id);
+
+-- Owners can update bookings for their slots (e.g., confirm, cancel)
+CREATE POLICY "owners_update_slot_bookings" ON bookings
+  FOR UPDATE
+  USING (
+    auth.uid() IN (
+      SELECT owner_id FROM parking_slots WHERE slot_id = bookings.slot_id
+    )
+  );
+
+-- ============================================================================
+-- HELPER FUNCTIONS (Optional but useful)
+-- ============================================================================
+
+-- Function to check if a slot is bookable for a given time range
+CREATE OR REPLACE FUNCTION is_slot_bookable(
+  p_slot_id INT,
+  p_start_time TIMESTAMPTZ,
+  p_end_time TIMESTAMPTZ
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_slot_status TEXT;
+  v_conflict_count INT;
+BEGIN
+  -- Check slot administrative status
+  SELECT status INTO v_slot_status
+  FROM parking_slots
+  WHERE slot_id = p_slot_id;
+  
+  IF v_slot_status IS NULL THEN
+    RETURN FALSE; -- Slot doesn't exist
+  END IF;
+  
+  IF v_slot_status != 'active' THEN
+    RETURN FALSE; -- Slot not active
+  END IF;
+  
+  -- Check for booking conflicts
+  SELECT COUNT(*) INTO v_conflict_count
+  FROM bookings
+  WHERE slot_id = p_slot_id
+    AND status = 'confirmed'
+    AND tstzrange(start_time, end_time) && tstzrange(p_start_time, p_end_time);
+  
+  RETURN v_conflict_count = 0;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+COMMENT ON FUNCTION is_slot_bookable IS 'Check if slot can be booked for given time range';
+
+-- ============================================================================
+-- SAMPLE DATA (for testing)
+-- ============================================================================
+
+-- Note: You'll need to create a test user in Supabase Auth first
+-- Then insert their profile here using their auth.users.id
+
+/*
+-- Example (replace with your actual user ID):
+INSERT INTO user_profiles (id, name, email, phone, unit_number) 
+VALUES (
+  '00000000-0000-0000-0000-000000000000',  -- Your auth.users.id
+  'Test User',
+  'test@example.com',
+  '+639171234567',
+  '10A'
+);
+
+INSERT INTO parking_slots (owner_id, slot_number, slot_type, price_per_hour, description)
+VALUES 
+  ('00000000-0000-0000-0000-000000000000', 'A-10', 'covered', 50.00, 'Near elevator'),
+  (NULL, 'V-01', 'covered', 30.00, 'Visitor slot - condo owned');
+
+-- Test the helper function:
+SELECT is_slot_bookable(1, NOW(), NOW() + INTERVAL '2 hours');
+*/
+
+-- ============================================================================
+-- VERIFICATION QUERIES
+-- ============================================================================
+
+-- Check tables were created:
+SELECT table_name FROM information_schema.tables 
+WHERE table_schema = 'public' 
+ORDER BY table_name;
+
+-- Check constraints:
+SELECT conname, contype, conrelid::regclass 
+FROM pg_constraint 
+WHERE conrelid::regclass::text IN ('parking_slots', 'bookings');
+
+-- Check RLS is enabled:
+SELECT schemaname, tablename, rowsecurity 
+FROM pg_tables 
+WHERE schemaname = 'public';
+
+-- Check policies:
+SELECT schemaname, tablename, policyname, cmd 
+FROM pg_policies 
+WHERE schemaname = 'public'
+ORDER BY tablename, policyname;

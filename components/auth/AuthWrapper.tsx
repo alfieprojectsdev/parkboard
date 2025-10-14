@@ -105,6 +105,13 @@ export function useAuth(): AuthContextType {
   return context
 }
 
+// 🆕 Optional version for public pages
+// Returns null if not in AuthWrapper context (for public pages like browse slots)
+export function useOptionalAuth(): AuthContextType | null {
+  const context = useContext(AuthContext)
+  return context || null
+}
+
 // ============================================================================
 // SECTION 2: AuthWrapper Component
 // ============================================================================
@@ -352,8 +359,6 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       // async callback: We can await inside (fetching profile)
       // ----------------------------------------------------------------------
       async (event, session) => {
-        console.log('Auth state changed:', event)
-
         // 🎓 LEARNING: Switch-like if/else for event handling
         // --------------------------------------------------------------------
         // Pattern: Check event type, respond accordingly
@@ -451,6 +456,26 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     // ------------------------------------------------------------------------
   }, [router, supabase])
 
+  // 🆕 FIXED: Handle redirect in useEffect (MUST be before conditional returns)
+  // --------------------------------------------------------------------------
+  // CRITICAL: This useEffect MUST be called before any early returns
+  // React Hooks Rule: All hooks must be called in the same order every render
+  //
+  // Why this placement?
+  // 1. Hooks can't be inside conditionals (breaks React's hook tracking)
+  // 2. Must run on every render to check if redirect needed
+  // 3. Only redirects when !loading && !user (safe conditions)
+  //
+  // Why useEffect not direct router.push()?
+  // - router.push() during render causes setState-in-render error
+  // - useEffect runs AFTER render completes (safe for side effects)
+  // --------------------------------------------------------------------------
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/login')
+    }
+  }, [loading, user, router])
+
   // ============================================================================
   // SECTION 4: Render Logic (Conditional Rendering)
   // ============================================================================
@@ -492,15 +517,10 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   // At this point, loading is false (guard 1 passed)
   // So if no user, they're definitely not logged in
   //
-  // Why router.push() AND return JSX?
-  // - router.push() queues navigation (async, not immediate)
-  // - return JSX prevents rendering protected content
-  // - Shows message during redirect
-  //
-  // Without return: Protected content flashes before redirect!
+  // 🆕 FIXED: Redirect happens in useEffect above (before any returns)
+  // This component just shows "Redirecting..." message during redirect
   // --------------------------------------------------------------------------
   if (!user) {
-    router.push('/login')
     return (
       <div className="flex items-center justify-center min-h-screen">
         <p className="text-gray-600">Redirecting to login...</p>

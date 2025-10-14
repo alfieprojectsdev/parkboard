@@ -98,16 +98,20 @@ export default function LoginPage() {
         throw signInError
       }
 
-      router.push('/slots')
+      router.push('/')
 
-    } catch (err: any) {
-      console.error('Login error:', err)
-      setError(err.message)
+    } catch (err: unknown) {
+      const error = err as Error
+      console.error('Login error:', error)
+      setError(error.message)
     } finally {
       setLoading(false)
     }
   }
 
+  // ⏸️ COMMENTED OUT FOR MVP TESTING: OAuth handlers
+  // Uncomment when OAuth providers are configured in Supabase
+  /*
   // Google OAuth Login Handler
   async function handleGoogleLogin() {
     setLoading(true)
@@ -130,9 +134,10 @@ export default function LoginPage() {
       // Supabase will redirect to Google login page
       // User will be redirected back to /auth/callback after login
 
-    } catch (err: any) {
-      console.error('Google login error:', err)
-      setError(err.message)
+    } catch (err: unknown) {
+      const error = err as Error
+      console.error('Google login error:', error)
+      setError(error.message)
       setLoading(false)
     }
   }
@@ -155,12 +160,14 @@ export default function LoginPage() {
       // Supabase will redirect to Facebook login page
       // User will be redirected back to /auth/callback after login
 
-    } catch (err: any) {
-      console.error('Facebook login error:', err)
-      setError(err.message)
+    } catch (err: unknown) {
+      const error = err as Error
+      console.error('Facebook login error:', error)
+      setError(error.message)
       setLoading(false)
     }
   }
+  */
 
   // 🎓 LEARNING: JSX Return (Render UI)
   // --------------------------------------------------------------------------
@@ -182,7 +189,19 @@ export default function LoginPage() {
           <p className="text-sm text-gray-600">Sign in to ParkBoard</p>
         </CardHeader>
         <CardContent>
-          {/* Social Login Buttons */}
+          {/* 🧪 MVP TESTING: Test Credentials Banner */}
+          <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-xs font-semibold text-blue-900 mb-2">Test Credentials:</p>
+            <div className="text-xs text-blue-800 space-y-1">
+              <p><strong>Email:</strong> user1@parkboard.test</p>
+              <p><strong>Password:</strong> test123456</p>
+              <p className="text-blue-600 mt-2 italic">More test users: user2-user20@parkboard.test</p>
+            </div>
+          </div>
+
+          {/* ⏸️ COMMENTED OUT FOR MVP TESTING: OAuth Login (Google/Facebook) */}
+          {/* Uncomment when OAuth providers are configured in Supabase */}
+          {/*
           <div className="space-y-3 mb-6">
             <Button
               type="button"
@@ -214,7 +233,6 @@ export default function LoginPage() {
             </Button>
           </div>
 
-          {/* Divider */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
@@ -223,6 +241,7 @@ export default function LoginPage() {
               <span className="bg-white px-2 text-gray-500">Or continue with email</span>
             </div>
           </div>
+          */}
 
           {/* 🎓 LEARNING: Form element with onSubmit
               ----------------------------------------------------------------------
@@ -352,7 +371,7 @@ export default function LoginPage() {
                 - Scrolls to top on navigation
                 ---------------------------------------------------------------------- */}
             <div className="text-center text-sm">
-              <span className="text-gray-600">Don't have an account? </span>
+              <span className="text-gray-600">Don&apos;t have an account? </span>
               <Link href="/register" className="text-blue-600 hover:underline">
                 Sign up
               </Link>

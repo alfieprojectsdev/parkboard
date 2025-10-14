@@ -30,6 +30,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 // PUBLIC ROUTES - No authentication required
 // ============================================================================
 // These routes are accessible to everyone, even without logging in
+// Note: API routes (/api/*) are handled separately and skip this check
 const PUBLIC_ROUTES = [
   '/',                    // Landing page
   '/login',              // Login page
@@ -154,6 +155,10 @@ export async function middleware(request: NextRequest) {
   // --------------------------------------------------------------------------
   // We have two main security rules:
   //
+  // RULE 0: Skip API Routes (they handle their own auth)
+  // API routes should not be redirected - they return JSON
+  // → Allow all /api/* routes to pass through
+  //
   // RULE 1: Protected Routes (require authentication)
   // If user is NOT logged in AND trying to access protected route
   // → Redirect to /login
@@ -168,12 +173,54 @@ export async function middleware(request: NextRequest) {
   // --------------------------------------------------------------------------
 
   // ============================================================================
+  // RULE 0: Skip middleware for API routes
+  // ============================================================================
+  // API routes handle their own authentication and return JSON
+  // Redirecting them would break the API response
+  if (pathname.startsWith('/api/')) {
+    return response
+  }
+
+  // ============================================================================
+  // COMMUNITY VALIDATION (Multi-Tenant Architecture)
+  // ============================================================================
+  // Validates community code in URL path (e.g., /LMR/slots)
+  // Added: 2025-10-13 for multi-tenant deployment
+  //
+  // Valid communities (hardcoded until database-driven validation)
+  const VALID_COMMUNITIES = ['LMR', 'SRP', 'BGC']
+
+  // Extract community code from pathname (e.g., /LMR/slots → LMR, /lmr → LMR)
+  // Pattern matches: /XYZ or /XYZ/anything
+  const communityMatch = pathname.match(/^\/([a-zA-Z]{2,4})(?:\/|$)/)
+
+  if (communityMatch) {
+    // Normalize to uppercase (e.g., /lmr → LMR)
+    const communityCode = communityMatch[1].toUpperCase()
+
+    // Check if community code is valid
+    if (!VALID_COMMUNITIES.includes(communityCode)) {
+      // Invalid community → redirect to root (shows community selector)
+      console.warn(`Invalid community code attempted: ${communityCode}`)
+      return NextResponse.redirect(new URL('/', request.url))
+    }
+  }
+
+  // ============================================================================
   // RULE 1: Protect non-public routes
   // ============================================================================
   // Check if this is a protected route (not in PUBLIC_ROUTES)
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route)
 
-  if (!session && !isPublicRoute) {
+  // NEW: Allow browsing community pages without login (but booking requires auth)
+  // Community landing pages (/LMR, /SRP) and slot listings (/LMR/slots) are public
+  // AuthWrapper in components will handle per-action auth (create slot, book slot, etc.)
+  const isCommunityBrowsePage = communityMatch && (
+    pathname.match(/^\/[A-Z]{2,4}\/?$/) || // /LMR or /LMR/
+    pathname.match(/^\/[A-Z]{2,4}\/slots\/?$/) // /LMR/slots
+  )
+
+  if (!session && !isPublicRoute && !isCommunityBrowsePage) {
     // User is NOT authenticated and trying to access protected route
     // → Redirect to login page
 
@@ -203,8 +250,8 @@ export async function middleware(request: NextRequest) {
 
   if (session && isAuthOnlyRoute) {
     // User is authenticated but trying to access login/register
-    // → Redirect to main app (slots page)
-    return NextResponse.redirect(new URL('/slots', request.url))
+    // → Redirect to community selector (multi-tenant: no default community)
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
   // ============================================================================
