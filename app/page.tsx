@@ -1,9 +1,65 @@
 // app/page.tsx - ParkBoard Landing Page
+'use client'
+
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function Home() {
+  const router = useRouter()
+  const supabase = createClient()
+  const [profile, setProfile] = useState<{ name: string; unit_number: string } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    // Check auth state on mount
+    async function checkAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          const { data: profileData } = await supabase
+            .from('user_profiles')
+            .select('name, unit_number')
+            .eq('id', session.user.id)
+            .single()
+          setProfile(profileData)
+        }
+      } catch (err) {
+        console.error('Landing page auth check error:', err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkAuth()
+
+    // Subscribe to auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          setProfile(null)
+        } else if (event === 'SIGNED_IN' && session) {
+          const { data: profileData } = await supabase
+            .from('user_profiles')
+            .select('name, unit_number')
+            .eq('id', session.user.id)
+            .single()
+          setProfile(profileData)
+        }
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  }, []) // Empty dependency array to run once on mount
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    router.refresh()
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
       {/* Navigation */}
@@ -15,12 +71,26 @@ export default function Home() {
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">ParkBoard</h1>
             </div>
             <div className="flex items-center gap-4">
-              <Link href="/login">
-                <Button variant="ghost">Login</Button>
-              </Link>
-              <Link href="/register">
-                <Button>Sign Up</Button>
-              </Link>
+              {isLoading ? (
+                <div className="text-sm text-gray-500">Loading...</div>
+              ) : profile ? (
+                <>
+                  <div className="text-sm">
+                    <div className="font-medium">{profile.name}</div>
+                    <div className="text-gray-500">Unit {profile.unit_number}</div>
+                  </div>
+                  <Button variant="ghost" onClick={handleSignOut}>Sign Out</Button>
+                </>
+              ) : (
+                <>
+                  <Link href="/login">
+                    <Button variant="ghost">Login</Button>
+                  </Link>
+                  <Link href="/register">
+                    <Button>Sign Up</Button>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>

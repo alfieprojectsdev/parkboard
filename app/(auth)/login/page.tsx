@@ -98,6 +98,20 @@ export default function LoginPage() {
         throw signInError
       }
 
+      // 🎓 LEARNING: Why router.refresh() before router.push()
+      // ----------------------------------------------------------------------
+      // Problem: Supabase saved session to cookies, but Next.js server hasn't
+      //          refreshed yet. Middleware/auth checks don't see new session.
+      //
+      // Solution: router.refresh() tells Next.js to refetch server data
+      //          (including auth session) before navigating.
+      //
+      // Flow:
+      // 1. Supabase saves session → Cookies updated ✅
+      // 2. router.refresh() → Next.js refetches server state ✅
+      // 3. router.push('/') → Navigate with fresh session ✅
+      // ----------------------------------------------------------------------
+      router.refresh()
       router.push('/')
 
     } catch (err: unknown) {

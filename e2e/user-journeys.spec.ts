@@ -51,7 +51,7 @@ test.describe('CUJ-001: User Login and Slot Browsing (Multi-Tenant)', () => {
     await expect(page.locator('text=/Lumiere/i').first()).toBeVisible()
 
     // Step 8: Click "Browse Slots"
-    await page.locator('text=Browse Slots').first().click()
+    await page.locator('text=View Available Slots').first().click()
 
     // Step 9: Verify on multi-tenant slots page
     await expect(page).toHaveURL('/LMR/slots')
@@ -386,10 +386,10 @@ test.describe('CUJ-009: Community Selector and Landing Page', () => {
     await expect(page.locator('text=/Lumiere Residences/i').first()).toBeVisible()
 
     // Step 4: Verify landing page content
-    await expect(page.locator('text=Browse Slots').first()).toBeVisible()
+    await expect(page.locator('text=View Available Slots').first()).toBeVisible()
 
     // Step 5: Click "Browse Slots"
-    await page.locator('text=Browse Slots').first().click()
+    await page.locator('text=View Available Slots').first().click()
 
     // Step 6: Verify on slots page
     await expect(page).toHaveURL('/LMR/slots')
@@ -560,7 +560,7 @@ test.describe('CUJ-013: Navigation Consistency', () => {
     await page.locator('text=My Bookings').first().click()
     await expect(page).toHaveURL('/LMR/bookings')
 
-    await page.locator('text=Browse Slots').first().click()
+    await page.locator('text=View Available Slots').first().click()
     await expect(page).toHaveURL('/LMR/slots')
 
     // Verify user stays within LMR community context

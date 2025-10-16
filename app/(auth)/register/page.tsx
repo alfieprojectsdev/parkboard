@@ -72,6 +72,8 @@ export default function RegisterPage() {
         }
 
         // Both registration and login succeeded
+        // Refresh router to pick up new session before navigating
+        router.refresh()
         router.push('/')
 
       } catch (err: unknown) {
