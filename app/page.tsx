@@ -450,7 +450,7 @@ export default async function Home() {
               <h5 className="text-white font-semibold mb-4">Support</h5>
               <ul className="space-y-2 text-sm">
                 <li><Link href="/help" className="hover:text-white">Help / FAQ</Link></li>
-                <li><a href="mailto:support@parkboard.ph" className="hover:text-white">Contact Us</a></li>
+                <li><a href="mailto:alfieprojects.dev@gmail.com" className="hover:text-white">Contact Us</a></li>
                 <li><Link href="/login" className="hover:text-white">Login</Link></li>
                 <li><Link href="/register" className="hover:text-white">Sign Up</Link></li>
               </ul>

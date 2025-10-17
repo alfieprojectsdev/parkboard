@@ -17,6 +17,7 @@
  */
 
 import { test, expect } from '@playwright/test'
+import { login, goToLMRSlots, goToLMRBookings } from './helpers'
 
 // ============================================================================
 // CUJ-001: User Login → Browse Slots → View Slot Detail (Multi-Tenant)
@@ -127,12 +128,7 @@ test.describe('CUJ-003: Complete Booking Flow (Multi-Tenant)', () => {
 
   test('user can make a booking end-to-end', async ({ page }) => {
     // Step 1: Login
-    await page.goto('/login')
-    await page.fill('input[id="email"]', 'user2@parkboard.test')
-    await page.fill('input[id="password"]', 'test123456')
-    await page.click('button:has-text("Sign In")')
-
-    await expect(page).toHaveURL('/')
+    await login(page, 'user2@parkboard.test', 'test123456')
 
     // Step 2: Navigate to LMR community
     await page.goto('/LMR/slots')

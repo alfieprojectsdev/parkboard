@@ -73,7 +73,7 @@ export default function HelpPage() {
         },
         {
           q: 'Can I edit or delete my listing?',
-          a: 'Currently, you can mark your slot as "inactive" if you no longer want to rent it. Editing slot details (coming in Phase 2) is not yet available. Contact support@parkboard.ph if you need to make changes.'
+          a: 'Currently, you can mark your slot as "inactive" if you no longer want to rent it. Editing slot details (coming in Phase 2) is not yet available. Contact alfieprojects.dev@gmail.com if you need to make changes.'
         },
         {
           q: 'How do I see who booked my slot?',
@@ -90,7 +90,7 @@ export default function HelpPage() {
         },
         {
           q: 'What if there\'s a pricing dispute?',
-          a: 'The price shown at booking time is the agreed price. Both parties can see the hourly rate, duration, and total in the booking details. If there\'s a dispute, contact us at support@parkboard.ph and we\'ll help mediate.'
+          a: 'The price shown at booking time is the agreed price. Both parties can see the hourly rate, duration, and total in the booking details. If there\'s a dispute, contact us at alfieprojects.dev@gmail.com and we\'ll help mediate.'
         },
         {
           q: 'Can I offer discounts for longer bookings?',
@@ -111,7 +111,7 @@ export default function HelpPage() {
         },
         {
           q: 'What if someone misuses my slot?',
-          a: 'Contact the renter directly using the phone number in your booking. If there\'s a serious issue (damage, unauthorized use), document it and email support@parkboard.ph. We take violations seriously.'
+          a: 'Contact the renter directly using the phone number in your booking. If there\'s a serious issue (damage, unauthorized use), document it and email alfieprojects.dev@gmail.com. We take violations seriously.'
         }
       ]
     },
@@ -120,7 +120,7 @@ export default function HelpPage() {
       questions: [
         {
           q: 'I can\'t log in. What should I do?',
-          a: 'Make sure you\'re using the correct email and password. Password reset (coming soon) is not yet available. If you forgot your password, contact support@parkboard.ph with your registered email and unit number.'
+          a: 'Make sure you\'re using the correct email and password. Password reset (coming soon) is not yet available. If you forgot your password, contact alfieprojects.dev@gmail.com with your registered email and unit number.'
         },
         {
           q: 'My booking isn\'t showing up',
@@ -128,7 +128,7 @@ export default function HelpPage() {
         },
         {
           q: 'I see an error when booking',
-          a: 'Common errors:\n• "Slot already booked" - Someone else booked those times. Try different times.\n• "End time must be after start time" - Check your time selection.\n• "Start time must be in the future" - You can\'t book past times.\n\nIf the error persists, contact support@parkboard.ph.'
+          a: 'Common errors:\n• "Slot already booked" - Someone else booked those times. Try different times.\n• "End time must be after start time" - Check your time selection.\n• "Start time must be in the future" - You can\'t book past times.\n\nIf the error persists, contact alfieprojects.dev@gmail.com.'
         },
         {
           q: 'The app looks broken or isn\'t loading',
@@ -265,8 +265,8 @@ export default function HelpPage() {
             <div className="space-y-2">
               <p>
                 <strong>Email Support:</strong>{' '}
-                <a href="mailto:support@parkboard.ph" className="text-blue-600 dark:text-blue-400 hover:underline">
-                  support@parkboard.ph
+                <a href="mailto:alfieprojects.dev@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">
+                  alfieprojects.dev@gmail.com
                 </a>
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">

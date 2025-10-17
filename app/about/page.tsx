@@ -236,7 +236,7 @@ export default function AboutPage() {
               bring ParkBoard to your condo community:
             </p>
             <div className="space-y-2">
-              <p><strong>Email:</strong> <a href="mailto:support@parkboard.ph" className="text-blue-600 dark:text-blue-400 hover:underline">support@parkboard.ph</a></p>
+              <p><strong>Email:</strong> <a href="mailto:alfieprojects.dev@gmail.com" className="text-blue-600 dark:text-blue-400 hover:underline">alfieprojects.dev@gmail.com</a></p>
               <p><strong>Help Center:</strong> <Link href="/help" className="text-blue-600 dark:text-blue-400 hover:underline">Visit our FAQ</Link></p>
             </div>
           </CardContent>
