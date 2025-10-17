@@ -19,7 +19,6 @@
 'use client'
 
 import { useState, FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,7 +27,6 @@ import { Alert } from '@/components/ui/alert'
 import Link from 'next/link'
 
 export default function LoginPage() {
-  const router = useRouter()
   const supabase = createClient()
 
   // 🎓 LEARNING: Controlled Inputs Pattern
@@ -98,21 +96,21 @@ export default function LoginPage() {
         throw signInError
       }
 
-      // 🎓 LEARNING: Why router.refresh() before router.push()
+      // 🎓 LEARNING: Why window.location.href for auth redirects
       // ----------------------------------------------------------------------
-      // Problem: Supabase saved session to cookies, but Next.js server hasn't
-      //          refreshed yet. Middleware/auth checks don't see new session.
+      // Problem: router.refresh() + router.push() can have race conditions
+      //          in test environments - router.push() may execute before
+      //          session is fully refreshed on server.
       //
-      // Solution: router.refresh() tells Next.js to refetch server data
-      //          (including auth session) before navigating.
+      // Solution: window.location.href = '/' forces a full page reload
+      //          which guarantees server reads fresh session from cookies.
       //
       // Flow:
       // 1. Supabase saves session → Cookies updated ✅
-      // 2. router.refresh() → Next.js refetches server state ✅
-      // 3. router.push('/') → Navigate with fresh session ✅
+      // 2. window.location.href = '/' → Full page reload ✅
+      // 3. Server reads fresh session from cookies ✅
       // ----------------------------------------------------------------------
-      router.refresh()
-      router.push('/')
+      window.location.href = '/'
 
     } catch (err: unknown) {
       const error = err as Error

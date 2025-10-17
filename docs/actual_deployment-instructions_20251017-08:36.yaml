@@ -1,0 +1,53 @@
+# 📋 Next Steps - Actual Deployment
+
+The codebase is now production-ready, but you need to
+complete the Vercel deployment yourself. Here's your roadmap:
+1. Create Vercel Account (5 minutes)
+# Go to: https://vercel.com/signup
+# Sign up with GitHub (recommended)
+2. Import Project to Vercel (3 minutes)
+- Click "Add New..." → "Project"
+- Search for alfieprojectsdev/parkboard
+- Click "Import"
+- Configure:
+  - Framework: Next.js (auto-detected)
+  - Root Directory: ./
+  - Build Command: npm run build (default)
+3. Add Environment Variables (5 minutes)
+In Vercel Dashboard → Project Settings → Environment
+Variables:
+Production Environment:
+NEXT_PUBLIC_SUPABASE_URL=https://cgbkknefvggnhkvmuwsa.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=[get from Supabase Dashboard]
+SUPABASE_SERVICE_ROLE_KEY=[get from Supabase Dashboard]
+Get these from: Supabase Dashboard → Project Settings → API
+4. Deploy (1 click)
+- Vercel will automatically deploy after adding env vars
+- Wait 2-3 minutes for build
+- You'll get a URL like: parkboard.vercel.app
+5. Configure Custom Domain (10 minutes)
+In Vercel → Domains → Add parkboard.app:
+- Add A record to Porkbun DNS: @ → 76.76.21.21
+- Add CNAME record: www → cname.vercel-dns.com
+- Wait 5-30 minutes for DNS propagation
+- Vercel auto-issues SSL certificate
+6. Run Production Migrations (5 minutes)
+IMPORTANT: Run these in Supabase SQL Editor before going
+live:
+# In Supabase Dashboard → SQL Editor, run these files:
+db/migrations/002_multi_tenant_communities_idempotent.sql
+db/migrations/003_community_rls_policies_idempotent.sql
+## 📖 Detailed Guide
+Full step-by-step instructions:
+docs/DEPLOYMENT_GUIDE_20251012.md
+🎯 Current Status
+- Codebase: ✅ Production-ready
+- Build: ✅ Succeeds
+- Tests: ✅ Passing
+- Commits: ✅ Up to date
+- Vercel Setup: ⏳ Waiting for you
+- Domain: ⏳ Waiting for deployment
+- Migrations: ⏳ Need to run in production DB
+You're ~30 minutes away from going live! 🚀
+Would you like me to help with anything specific about the
+deployment process, or should we move on to another task?

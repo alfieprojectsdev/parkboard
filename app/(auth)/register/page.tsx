@@ -72,9 +72,9 @@ export default function RegisterPage() {
         }
 
         // Both registration and login succeeded
-        // Refresh router to pick up new session before navigating
-        router.refresh()
-        router.push('/')
+        // Use window.location.href to force full page reload
+        // This ensures server picks up fresh session from cookies
+        window.location.href = '/'
 
       } catch (err: unknown) {
         const error = err as Error
