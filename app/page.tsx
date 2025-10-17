@@ -1,100 +1,40 @@
-// app/page.tsx - ParkBoard Landing Page
-'use client'
-
-import { useState, useEffect } from 'react'
+// app/page.tsx - ParkBoard Landing Page (Server Component)
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import LandingNav from '@/components/landing/LandingNav'
 
-export default function Home() {
-  const router = useRouter()
+/**
+ * Landing Page - Server Component
+ *
+ * Why Server Component?
+ * - Reads auth state from cookies server-side (instant, no network delay)
+ * - No race conditions or flashing content
+ * - Better SEO and initial page load
+ *
+ * Auth state is determined BEFORE rendering, then passed to client components
+ */
+export default async function Home() {
+  // Server-side auth check (instant - reads from cookies)
   const supabase = createClient()
-  const [profile, setProfile] = useState<{ name: string; unit_number: string } | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const { data: { session } } = await supabase.auth.getSession()
 
-  useEffect(() => {
-    // Check auth state on mount
-    async function checkAuth() {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session?.user) {
-          const { data: profileData } = await supabase
-            .from('user_profiles')
-            .select('name, unit_number')
-            .eq('id', session.user.id)
-            .single()
-          setProfile(profileData)
-        }
-      } catch (err) {
-        console.error('Landing page auth check error:', err)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    checkAuth()
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_OUT') {
-          setProfile(null)
-        } else if (event === 'SIGNED_IN' && session) {
-          const { data: profileData } = await supabase
-            .from('user_profiles')
-            .select('name, unit_number')
-            .eq('id', session.user.id)
-            .single()
-          setProfile(profileData)
-        }
-      }
-    )
-
-    return () => subscription.unsubscribe()
-  }, []) // Empty dependency array to run once on mount
-
-  async function handleSignOut() {
-    await supabase.auth.signOut()
-    router.refresh()
+  // Fetch profile if user is logged in
+  let profile = null
+  if (session?.user) {
+    const { data: profileData } = await supabase
+      .from('user_profiles')
+      .select('name, unit_number')
+      .eq('id', session.user.id)
+      .single()
+    profile = profileData
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white dark:from-gray-900 dark:to-gray-800">
-      {/* Navigation */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm dark:bg-gray-900/80 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">🅿️</div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">ParkBoard</h1>
-            </div>
-            <div className="flex items-center gap-4">
-              {isLoading ? (
-                <div className="text-sm text-gray-500">Loading...</div>
-              ) : profile ? (
-                <>
-                  <div className="text-sm">
-                    <div className="font-medium">{profile.name}</div>
-                    <div className="text-gray-500">Unit {profile.unit_number}</div>
-                  </div>
-                  <Button variant="ghost" onClick={handleSignOut}>Sign Out</Button>
-                </>
-              ) : (
-                <>
-                  <Link href="/login">
-                    <Button variant="ghost">Login</Button>
-                  </Link>
-                  <Link href="/register">
-                    <Button>Sign Up</Button>
-                  </Link>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </nav>
+      {/* Navigation - Client Component for Interactivity */}
+      <LandingNav profile={profile} />
 
       {/* Hero Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
