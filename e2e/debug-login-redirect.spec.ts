@@ -21,7 +21,7 @@ test('diagnostic: login redirect after router.refresh() fix', async ({ page }) =
 
   // Step 1: Navigate to login page
   console.log('Step 1: Navigating to /login')
-  await page.goto('http://localhost:3000/login', {
+  await page.goto('/login', {
     waitUntil: 'networkidle',
     timeout: 10000
   })

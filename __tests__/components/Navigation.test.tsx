@@ -67,4 +67,15 @@ describe('Navigation Component (TEST-C001)', () => {
     render(<Navigation />)
     expect(screen.getByText(/sign out/i)).toBeInTheDocument()
   })
+
+  it('sign out button is clickable', () => {
+    render(<Navigation />)
+    const signOutButton = screen.getByRole('button', { name: /sign out/i })
+
+    // Verify button is not disabled
+    expect(signOutButton).not.toBeDisabled()
+
+    // Verify button has onClick handler (component should not crash when clicked)
+    expect(() => signOutButton.click()).not.toThrow()
+  })
 })

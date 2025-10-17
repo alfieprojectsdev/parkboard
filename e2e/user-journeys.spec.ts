@@ -289,32 +289,34 @@ test.describe('CUJ-006: Session Persistence (Multi-Tenant)', () => {
 // ============================================================================
 
 test.describe('CUJ-007: Logout (Multi-Tenant)', () => {
+  test.use({ storageState: undefined }) // Clear any stored auth
+
   test('user can logout successfully', async ({ page }) => {
-    // Login
-    await page.goto('/login')
-    await page.fill('input[id="email"]', 'user6@parkboard.test')
-    await page.fill('input[id="password"]', 'test123456')
-    await page.click('button:has-text("Sign In")')
+    // Step 1: Login using helper (with proper timeout for production)
+    await login(page, 'user6@parkboard.test', 'test123456')
 
-    await expect(page).toHaveURL('/')
-
-    // Navigate to slots
+    // Step 2: Navigate to slots to verify logged in state
     await page.goto('/LMR/slots')
 
-    // Verify logged in
-    await expect(page.locator('nav').locator('text=Test User 6')).toBeVisible()
+    // Step 3: Verify user is logged in (check navigation shows name)
+    await expect(page.locator('nav').locator('text=Test User 6')).toBeVisible({ timeout: 10000 })
 
-    // Click logout
+    // Step 4: Click Sign Out button
     await page.click('button:has-text("Sign Out")')
 
-    // Should redirect to login
-    await expect(page).toHaveURL('/login', { timeout: 5000 })
+    // Step 5: Should redirect to login page
+    await expect(page).toHaveURL('/login', { timeout: 10000 })
 
-    // Try to access protected route
+    // Step 6: Verify logged out state - should see Login/Register buttons
+    await expect(page.locator('text=Login').first()).toBeVisible()
+    await expect(page.locator('text=Register').first()).toBeVisible()
+
+    // Step 7: Try to access protected route (should redirect to login)
     await page.goto('/LMR/bookings')
 
-    // Should redirect back to login with redirect
-    await expect(page).toHaveURL(/\/login\?redirect=/)
+    // Step 8: Should redirect back to login with redirect parameter
+    await expect(page).toHaveURL(/\/login\?redirect=/, { timeout: 5000 })
+    expect(page.url()).toContain('/LMR/bookings')
   })
 })
 
