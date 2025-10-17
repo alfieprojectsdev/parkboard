@@ -31,22 +31,38 @@ Since the slot editing UI is not yet available (planned for Phase 2), this guide
 4. Paste SQL commands and click "Run"
 
 **Option 2: Supabase CLI**
+
+**Installation Options:**
+
+*Method 1: Use npx (No installation - Recommended)*
 ```bash
-# Install CLI (one-time)
-npm install -g supabase
+# No installation needed! Just use npx:
+npx supabase login
+npx supabase link --project-ref cgbkknefvggnhkvmuwsa
+npx supabase db execute --file your-query.sql
+```
 
-# Login to Supabase
+*Method 2: Install via script (Linux/macOS)*
+```bash
+# Install CLI globally
+curl -fsSL https://supabase.com/install.sh | sh
+
+# Then use normally
 supabase login
-
-# Link to project
 supabase link --project-ref cgbkknefvggnhkvmuwsa
-
-# Run SQL file
 supabase db execute --file your-query.sql
+```
+
+**Usage Examples:**
+```bash
+# Run SQL file
+npx supabase db execute --file your-query.sql
 
 # Run inline SQL
-supabase db execute "SELECT * FROM parking_slots LIMIT 5;"
+npx supabase db execute "SELECT * FROM parking_slots LIMIT 5;"
 ```
+
+**Note:** `npm install -g supabase` is no longer supported. Use npx or the install script.
 
 ---
 
