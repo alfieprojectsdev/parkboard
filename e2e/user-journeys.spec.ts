@@ -60,7 +60,7 @@ test.describe('CUJ-001: User Login and Slot Browsing (Multi-Tenant)', () => {
     await expect(page.locator('text=/Slot [A-Z]-\\d+/i').first()).toBeVisible({ timeout: 10000 })
 
     // Step 11: Verify user is logged in (check navigation shows name)
-    await expect(page.locator('text=Test User 1')).toBeVisible()
+    await expect(page.locator('nav').locator('text=Test User 1')).toBeVisible()
 
     // Step 12: Click on first available slot
     await page.locator('text=/Slot [A-Z]-\\d+/i').first().click()
@@ -97,7 +97,7 @@ test.describe('CUJ-002: New User Registration (Multi-Tenant)', () => {
     await expect(page).toHaveURL('/', { timeout: 15000 })
 
     // Verify user is logged in (check navigation)
-    await expect(page.locator('text=Test User')).toBeVisible()
+    await expect(page.locator('nav').locator('text=Test User')).toBeVisible()
   })
 
   test('shows error for duplicate email', async ({ page }) => {
@@ -270,21 +270,21 @@ test.describe('CUJ-006: Session Persistence (Multi-Tenant)', () => {
     await page.goto('/LMR/slots')
 
     // Verify logged in
-    await expect(page.locator('text=Test User 5')).toBeVisible()
+    await expect(page.locator('nav').locator('text=Test User 5')).toBeVisible()
 
     // Reload page
     await page.reload()
 
     // Should still be logged in and on same page
     await expect(page).toHaveURL('/LMR/slots')
-    await expect(page.locator('text=Test User 5')).toBeVisible()
+    await expect(page.locator('nav').locator('text=Test User 5')).toBeVisible()
 
     // Navigate to bookings
     await page.locator('text=My Bookings').first().click()
     await expect(page).toHaveURL('/LMR/bookings')
 
     // Should still be logged in
-    await expect(page.locator('text=Test User 5')).toBeVisible()
+    await expect(page.locator('nav').locator('text=Test User 5')).toBeVisible()
   })
 })
 
@@ -306,7 +306,7 @@ test.describe('CUJ-007: Logout (Multi-Tenant)', () => {
     await page.goto('/LMR/slots')
 
     // Verify logged in
-    await expect(page.locator('text=Test User 6')).toBeVisible()
+    await expect(page.locator('nav').locator('text=Test User 6')).toBeVisible()
 
     // Click logout
     await page.click('button:has-text("Sign Out")')
