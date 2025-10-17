@@ -16,7 +16,6 @@ export default function Navigation() {
 
   // State for auth when not wrapped in AuthWrapper (public pages)
   const [localProfile, setLocalProfile] = useState<UserProfile | null>(null)
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   // Use auth from context if available, otherwise use local state
   const profile = auth?.profile || localProfile
@@ -27,7 +26,6 @@ export default function Navigation() {
   useEffect(() => {
     // If AuthWrapper provides auth, don't fetch locally
     if (auth) {
-      setIsCheckingAuth(false)
       return
     }
 
@@ -46,8 +44,6 @@ export default function Navigation() {
         }
       } catch (err) {
         console.error('Navigation auth check error:', err)
-      } finally {
-        setIsCheckingAuth(false)
       }
     }
 

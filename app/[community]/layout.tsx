@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import { CommunityProvider } from '@/lib/context/CommunityContext'
-import { createClient } from '@/lib/supabase/server'
 
 // Valid community codes (TODO: fetch from database in future)
 const VALID_COMMUNITIES = ['LMR', 'SRP', 'BGC']

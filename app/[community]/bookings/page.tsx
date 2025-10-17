@@ -25,7 +25,7 @@ interface Booking {
       name: string
       phone: string
     }
-  }
+  } | null
 }
 
 function BookingsContent() {
@@ -66,7 +66,9 @@ function BookingsContent() {
 
         if (fetchError) throw fetchError
 
-        setBookings(data || [])
+        // Type assertion needed because Supabase joins return proper structure
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setBookings((data as any) || [])
       } catch (err: unknown) {
         const error = err as Error
         console.error('Error fetching bookings:', error)
@@ -192,7 +194,7 @@ function BookingsContent() {
             <CardHeader>
               <div className="flex justify-between items-center">
                 <CardTitle className="text-xl">
-                  Slot {booking.parking_slots.slot_number}
+                  Slot {booking.parking_slots?.slot_number || 'N/A'}
                 </CardTitle>
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${getStatusColor(booking.status)}`}>
                   {booking.status}
@@ -230,8 +232,8 @@ function BookingsContent() {
                 <div className="space-y-2">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <span className="text-sm text-gray-500 block mb-2">Owner Contact</span>
-                    <p className="font-medium">{booking.parking_slots.user_profiles.name}</p>
-                    <p className="text-sm text-gray-600">{booking.parking_slots.user_profiles.phone}</p>
+                    <p className="font-medium">{booking.parking_slots?.user_profiles?.name || 'N/A'}</p>
+                    <p className="text-sm text-gray-600">{booking.parking_slots?.user_profiles?.phone || 'N/A'}</p>
                   </div>
 
                   {/* Cancel Button (only for pending bookings) */}

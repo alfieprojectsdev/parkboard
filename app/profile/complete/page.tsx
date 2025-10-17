@@ -5,11 +5,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/auth/AuthWrapper'
+import AuthWrapper from '@/components/auth/AuthWrapper'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-export default function CompleteProfilePage() {
+function CompleteProfileContent() {
   const router = useRouter()
   const supabase = createClient()
   const { user } = useAuth()
@@ -98,5 +99,13 @@ export default function CompleteProfilePage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function CompleteProfilePage() {
+  return (
+    <AuthWrapper>
+      <CompleteProfileContent />
+    </AuthWrapper>
   )
 }

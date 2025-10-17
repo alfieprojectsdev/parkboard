@@ -121,7 +121,7 @@ export default function CommunityHome() {
                 <div className="text-4xl mb-3">3️⃣</div>
                 <h3 className="font-bold mb-2">Park</h3>
                 <p className="text-sm text-gray-700">
-                  Use your neighbor's slot when they're away
+                  Use your neighbor&apos;s slot when they&apos;re away
                 </p>
               </div>
             </div>

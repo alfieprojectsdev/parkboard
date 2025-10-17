@@ -56,7 +56,8 @@ function SlotsContent() {
         if (fetchError) throw fetchError
 
         // NEW: Optional client-side ranking (boost explicit pricing)
-        const rankedSlots = (data || []).sort((a, b) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rankedSlots = ((data as any) || []).sort((a: any, b: any) => {
           // Slots with explicit pricing appear first
           const aScore = a.price_per_hour ? 1 : 0.7
           const bScore = b.price_per_hour ? 1 : 0.7

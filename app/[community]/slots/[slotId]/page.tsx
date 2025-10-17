@@ -74,7 +74,9 @@ function BookSlotContent() {
           throw new Error('This slot is not available for booking')
         }
 
-        setSlot(data)
+        // Type assertion needed because Supabase joins return proper structure
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setSlot(data as any)
       } catch (err: unknown) {
         const error = err as Error
         console.error('Error fetching slot:', error)
