@@ -29,7 +29,7 @@ test.describe('Debug: LMR Slots Page', () => {
     console.log('\n🔍 Starting debug test for /LMR/slots...\n')
 
     // Navigate to LMR slots
-    await page.goto('http://localhost:3000/LMR/slots', {
+    await page.goto('/LMR/slots', {
       waitUntil: 'networkidle',
       timeout: 30000
     })
@@ -92,7 +92,7 @@ test.describe('Debug: LMR Slots Page', () => {
     console.log('\n🔍 Testing navigation flow...\n')
 
     // Start at root
-    await page.goto('http://localhost:3000/', { waitUntil: 'networkidle' })
+    await page.goto('/', { waitUntil: 'networkidle' })
     console.log('✅ Root page loaded')
 
     // Click Lumiere card

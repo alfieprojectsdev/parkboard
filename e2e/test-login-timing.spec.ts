@@ -8,7 +8,7 @@ test('measure exact login timing (no artificial waits)', async ({ page }) => {
   // Navigate to login
   console.log('Step 1: Navigate to /login')
   const navStart = Date.now()
-  await page.goto('http://localhost:3000/login', {
+  await page.goto('/login', {
     waitUntil: 'networkidle',
     timeout: 10000
   })
@@ -37,7 +37,8 @@ test('measure exact login timing (no artificial waits)', async ({ page }) => {
     attempts++
 
     const currentUrl = page.url()
-    if (currentUrl === 'http://localhost:3000/') {
+    // Check if redirected away from /login (to root / or /LMR)
+    if (!currentUrl.includes('/login')) {
       redirected = true
       redirectTime = Date.now() - clickStart
       console.log(`  ✅ Redirect successful after ${redirectTime}ms (${attempts} checks)`)
