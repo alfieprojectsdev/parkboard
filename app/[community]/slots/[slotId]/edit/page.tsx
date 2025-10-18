@@ -310,7 +310,6 @@ function EditSlotContent() {
                   id="price_per_hour"
                   type="number"
                   required
-                  min="1"
                   step="0.01"
                   placeholder="50.00"
                   value={formData.price_per_hour}
