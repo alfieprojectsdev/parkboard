@@ -36,6 +36,12 @@ describe('Register Page (TEST-R003 - COMPREHENSIVE)', () => {
     jest.clearAllMocks()
     ;(useRouter as jest.Mock).mockReturnValue({ push: mockPush })
 
+    // Mock window.location.href assignment
+    // @ts-ignore - Mocking location.href for testing
+    delete window.location
+    // @ts-ignore
+    window.location = { href: '' }
+
     // Default mock implementations
     mockSignInWithPassword.mockResolvedValue({ data: { user: {} }, error: null })
     ;(global.fetch as jest.Mock).mockResolvedValue({
@@ -248,8 +254,10 @@ describe('Register Page (TEST-R003 - COMPREHENSIVE)', () => {
         })
       })
 
-      // Should redirect to / (community selector)
-      expect(mockPush).toHaveBeenCalledWith('/')
+      // Should redirect to / (community selector) via window.location.href
+      // This was changed from router.push() to prevent race conditions
+      // Note: JSDOM expands relative URLs to full URLs (http://localhost/)
+      expect(window.location.href).toBe('http://localhost/')
     })
 
     it('shows loading state during registration', async () => {

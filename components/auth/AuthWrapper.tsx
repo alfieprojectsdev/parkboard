@@ -220,6 +220,10 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     // This lets useEffect return nothing while still using async/await
     // ------------------------------------------------------------------------
 
+    // 🔍 CRITICAL FIX: Track if component is still mounted
+    // This prevents setState on unmounted component (React warning + bugs)
+    let isMounted = true
+
     async function initializeAuth() {
       // 🎓 LEARNING: try/catch/finally with async
       // ----------------------------------------------------------------------
@@ -245,6 +249,11 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
 
         // Get current session
         const { data: { session } } = await supabase.auth.getSession()
+
+        // 🔍 CRITICAL FIX: Only setState if component is still mounted
+        if (!isMounted) {
+          return
+        }
 
         // 🎓 LEARNING: Optional chaining (?.) and nullish coalescing (||)
         // --------------------------------------------------------------------
@@ -290,11 +299,20 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           // - Would be array otherwise: [{ profile }]
           // ------------------------------------------------------------------
 
-          const { data: profileData } = await supabase
+          const { data: profileData, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
             .eq('id', session.user.id)
             .single()
+
+          if (profileError) {
+            console.error('[AuthWrapper] Profile fetch error:', profileError)
+          }
+
+          // 🔍 CRITICAL FIX: Check if still mounted before setState
+          if (!isMounted) {
+            return
+          }
 
           setProfile(profileData)
         }
@@ -311,7 +329,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
         // - Log error for debugging
         // - Don't interrupt user experience
         // --------------------------------------------------------------------
-        console.error('Auth initialization error:', err)
+        console.error('[AuthWrapper] Auth initialization error:', err)
       } finally {
         // 🎓 LEARNING: finally block
         // --------------------------------------------------------------------
@@ -322,7 +340,11 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
         // - If error occurs, loading would stay true forever!
         // - finally ensures it always runs
         // --------------------------------------------------------------------
-        setLoading(false)
+
+        // 🔍 CRITICAL FIX: Check if still mounted before setState
+        if (isMounted) {
+          setLoading(false)
+        }
       }
     }
 
@@ -431,30 +453,34 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     return () => {
       // 🎓 CRITICAL: Always unsubscribe from listeners!
       // This prevents memory leaks and stale subscriptions
+
+      // 🔍 CRITICAL FIX: Mark component as unmounted
+      // This prevents setState calls after unmount (memory leaks + bugs)
+      isMounted = false
+
       subscription.unsubscribe()
     }
 
     // 🎓 LEARNING: useEffect dependency array
     // ------------------------------------------------------------------------
-    // [router, supabase]
-    //    ^       ^
-    //    Dependencies: Re-run effect if these change
+    // CRITICAL FIX: Empty array [] for mount-only execution
     //
-    // Q: When do router or supabase change?
-    // A: Almost never! They're stable references
+    // ❌ WRONG: [router, supabase]
+    // Why wrong? router and supabase are object references that change
+    // on every render, causing infinite re-runs and session state resets
     //
-    // Why include them?
-    // - TypeScript/ESLint rules: "Include all used variables"
-    // - Technically correct (even if they rarely change)
+    // ✅ CORRECT: []
+    // Empty array = run ONCE on mount, never again
     //
-    // Common mistake: Forgetting dependencies
-    // - Missing [supabase] → uses old supabase instance
-    // - Missing [user] when user is used → stale closure bug
+    // Why this is safe:
+    // - Auth initialization should only happen once when component mounts
+    // - onAuthStateChange subscription handles all future auth changes
+    // - Re-running this effect would unsubscribe/resubscribe constantly
     //
-    // Rule of thumb: Include EVERYTHING used inside effect
-    // (Except setState functions, which are always stable)
+    // Reference: CLAUDE.md lines 163-186
+    // "NEVER use object references in useEffect dependencies"
     // ------------------------------------------------------------------------
-  }, [router, supabase])
+  }, [])
 
   // 🆕 FIXED: Handle redirect in useEffect (MUST be before conditional returns)
   // --------------------------------------------------------------------------
@@ -582,7 +608,9 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   // All good - render children with context
   return (
     <AuthContext.Provider value={{ user, profile, loading }}>
-      {children}
+      <div data-testid="auth-wrapper">
+        {children}
+      </div>
     </AuthContext.Provider>
   )
 }

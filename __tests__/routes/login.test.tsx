@@ -41,6 +41,12 @@ describe('Login Page (TEST-R002 - COMPREHENSIVE)', () => {
     // Default mock implementations
     mockSignInWithPassword.mockResolvedValue({ data: { user: {} }, error: null })
     mockSignInWithOAuth.mockResolvedValue({ data: {}, error: null })
+
+    // Mock window.location.href assignment
+    // @ts-ignore - Mocking location.href for testing
+    delete window.location
+    // @ts-ignore
+    window.location = { href: '' }
   })
 
   // ============================================================================
@@ -170,8 +176,10 @@ describe('Login Page (TEST-R002 - COMPREHENSIVE)', () => {
         })
       })
 
-      // Should redirect to / (community selector)
-      expect(mockPush).toHaveBeenCalledWith('/')
+      // Should redirect to / (community selector) via window.location.href
+      // This was changed from router.push() to prevent race conditions
+      // Note: JSDOM expands relative URLs to full URLs (http://localhost/)
+      expect(window.location.href).toBe('http://localhost/')
     })
 
     it('shows loading state during login', async () => {
