@@ -20,6 +20,7 @@ interface SlotDetails {
   description: string | null
   price_per_hour: number | null  // NEW: Can be NULL for Request Quote
   status: string
+  owner_id: string  // NEW: For ownership check
   user_profiles: {
     name: string
     phone: string
@@ -60,6 +61,7 @@ function BookSlotContent() {
             description,
             price_per_hour,
             status,
+            owner_id,
             user_profiles (
               name,
               phone
@@ -219,13 +221,28 @@ function BookSlotContent() {
   // NEW: Determine if this is a Request Quote slot
   const isRequestQuote = !slot.price_per_hour
 
+  // NEW: Check if current user is the owner
+  const isOwner = user?.id === slot.owner_id
+
   return (
     <div className="max-w-2xl mx-auto p-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">
-            {isRequestQuote ? 'Contact Owner for Booking' : 'Book Parking Slot'}
-          </CardTitle>
+          <div className="flex justify-between items-start">
+            <CardTitle className="text-2xl">
+              {isRequestQuote ? 'Contact Owner for Booking' : 'Book Parking Slot'}
+            </CardTitle>
+            {/* NEW: Edit button for owners */}
+            {isOwner && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => router.push(`/${community.code}/slots/${slotId}/edit`)}
+              >
+                ✏️ Edit Slot
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Slot Details (Updated with conditional pricing display) */}

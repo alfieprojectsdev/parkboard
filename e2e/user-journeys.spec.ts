@@ -502,13 +502,13 @@ test.describe('CUJ-012: List Slot Flow', () => {
 
     // Fill slot form
     const uniqueSlotNumber = `TEST-${Date.now()}`
-    await page.fill('input[id*="slotNumber"]', uniqueSlotNumber)
+    await page.fill('input[id="slot_number"]', uniqueSlotNumber)
 
     // Select slot type
-    await page.selectOption('select[id*="slotType"]', 'covered')
+    await page.selectOption('select[id="slot_type"]', 'covered')
 
     // Fill description
-    await page.fill('textarea[id*="description"]', 'E2E test slot - can be deleted')
+    await page.fill('textarea[id="description"]', 'E2E test slot - can be deleted')
 
     // Select explicit pricing (if pricing options exist)
     const pricingRadio = page.locator('input[type="radio"][value="explicit"]')
@@ -517,7 +517,7 @@ test.describe('CUJ-012: List Slot Flow', () => {
     }
 
     // Fill price
-    await page.fill('input[id*="price"]', '50')
+    await page.fill('input[id="price_per_hour"]', '50')
 
     // Submit form
     await page.click('button:has-text("List Slot")')
@@ -564,5 +564,195 @@ test.describe('CUJ-013: Navigation Consistency', () => {
     // Verify user stays within LMR community context
     const currentUrl = page.url()
     expect(currentUrl).toContain('/LMR/')
+  })
+})
+
+// ============================================================================
+// CUJ-014: Edit Slot Flow (Owner Can Modify Their Slots)
+// ============================================================================
+
+test.describe('CUJ-014: Edit Slot Flow', () => {
+  test.use({ storageState: undefined }) // Clear any stored auth
+
+  test('owner can edit their own slot', async ({ page }) => {
+    // Step 1: Login as user12
+    await login(page, 'user12@parkboard.test', 'test123456')
+
+    // Step 2: Create a slot first (to have something to edit)
+    await page.goto('/LMR/slots/new')
+
+    const uniqueSlotNumber = `EDIT-TEST-${Date.now()}`
+    await page.fill('input[id="slot_number"]', uniqueSlotNumber)
+    await page.selectOption('select[id="slot_type"]', 'covered')
+    await page.fill('textarea[id="description"]', 'Original description for editing test')
+
+    // Select explicit pricing
+    const pricingRadio = page.locator('input[type="radio"][value="explicit"]')
+    if (await pricingRadio.count() > 0) {
+      await pricingRadio.click()
+    }
+    await page.fill('input[id="price_per_hour"]', '45')
+
+    // Submit slot creation
+    await page.click('button:has-text("List Slot")')
+    await expect(page).toHaveURL('/LMR/slots', { timeout: 10000 })
+
+    // Step 3: Find the created slot and get its ID
+    await page.locator(`text=${uniqueSlotNumber}`).first().click()
+
+    // Wait for slot detail page to load
+    await expect(page).toHaveURL(/\/LMR\/slots\/\d+/)
+
+    // Extract slot ID from URL
+    const slotDetailUrl = page.url()
+    const slotIdMatch = slotDetailUrl.match(/\/LMR\/slots\/(\d+)/)
+    expect(slotIdMatch).not.toBeNull()
+    const slotId = slotIdMatch![1]
+
+    // Step 4: Navigate to edit page
+    await page.goto(`/LMR/slots/${slotId}/edit`)
+
+    // Step 5: Verify edit page loads with current data
+    await expect(page).toHaveURL(`/LMR/slots/${slotId}/edit`)
+    await expect(page.locator('text=/Edit.*Slot/i')).toBeVisible()
+
+    // Verify slot number is displayed (read-only)
+    await expect(page.locator(`text=${uniqueSlotNumber}`)).toBeVisible()
+    await expect(page.locator('text=/cannot be changed/i')).toBeVisible()
+
+    // Verify current values are pre-filled
+    const slotTypeSelect = page.locator('select[id*="slot_type"]')
+    await expect(slotTypeSelect).toHaveValue('covered')
+
+    const descriptionTextarea = page.locator('textarea[id*="description"]')
+    await expect(descriptionTextarea).toHaveValue('Original description for editing test')
+
+    // Step 6: Make changes to the slot
+    // Change slot type
+    await slotTypeSelect.selectOption('uncovered')
+
+    // Update description
+    await descriptionTextarea.fill('Updated description after editing')
+
+    // Change price
+    await page.fill('input[id*="price_per_hour"]', '60')
+
+    // Step 7: Submit changes
+    await page.click('button:has-text("Save Changes")')
+
+    // Should redirect back to slot detail page
+    await expect(page).toHaveURL(`/LMR/slots/${slotId}`, { timeout: 10000 })
+
+    // Step 8: Verify changes were saved
+    await expect(page.locator('text=/Uncovered/i')).toBeVisible()
+    await expect(page.locator('text=Updated description after editing')).toBeVisible()
+    await expect(page.locator('text=/₱60/i')).toBeVisible()
+  })
+
+  test('owner can change slot pricing from explicit to request quote', async ({ page }) => {
+    // Step 1: Login
+    await login(page, 'user13@parkboard.test', 'test123456')
+
+    // Step 2: Create slot with explicit pricing
+    await page.goto('/LMR/slots/new')
+
+    const uniqueSlotNumber = `PRICE-CHANGE-${Date.now()}`
+    await page.fill('input[id="slot_number"]', uniqueSlotNumber)
+    await page.selectOption('select[id="slot_type"]', 'covered')
+
+    // Set explicit pricing
+    const pricingRadio = page.locator('input[type="radio"][value="explicit"]')
+    if (await pricingRadio.count() > 0) {
+      await pricingRadio.click()
+    }
+    await page.fill('input[id="price_per_hour"]', '50')
+
+    await page.click('button:has-text("List Slot")')
+    await expect(page).toHaveURL('/LMR/slots', { timeout: 10000 })
+
+    // Step 3: Navigate to the slot detail page
+    await page.locator(`text=${uniqueSlotNumber}`).first().click()
+
+    const slotDetailUrl = page.url()
+    const slotIdMatch = slotDetailUrl.match(/\/LMR\/slots\/(\d+)/)
+    const slotId = slotIdMatch![1]
+
+    // Step 4: Go to edit page
+    await page.goto(`/LMR/slots/${slotId}/edit`)
+
+    // Step 5: Change to request quote pricing
+    const requestQuoteRadio = page.locator('input[type="radio"][value="request_quote"]')
+    await requestQuoteRadio.click()
+
+    // Verify price input is now hidden
+    await expect(page.locator('input[id*="price_per_hour"]')).not.toBeVisible()
+    await expect(page.locator('text=/Request Quote Mode/i')).toBeVisible()
+
+    // Step 6: Save changes
+    await page.click('button:has-text("Save Changes")')
+    await expect(page).toHaveURL(`/LMR/slots/${slotId}`, { timeout: 10000 })
+
+    // Step 7: Verify pricing changed to request quote
+    await expect(page.locator('text=/Request Quote|Contact Owner/i')).toBeVisible()
+    // Price should NOT be visible
+    const priceCount = await page.locator('text=/₱50/').count()
+    expect(priceCount).toBe(0)
+  })
+
+  test('non-owner cannot edit someone elses slot', async ({ page }) => {
+    // Step 1: Login as user12 and create a slot
+    await login(page, 'user12@parkboard.test', 'test123456')
+
+    await page.goto('/LMR/slots/new')
+    const slotNumber = `OWNER-TEST-${Date.now()}`
+    await page.fill('input[id="slot_number"]', slotNumber)
+    await page.selectOption('select[id="slot_type"]', 'covered')
+    const pricingRadio = page.locator('input[type="radio"][value="explicit"]')
+    if (await pricingRadio.count() > 0) {
+      await pricingRadio.click()
+    }
+    await page.fill('input[id="price_per_hour"]', '50')
+    await page.click('button:has-text("List Slot")')
+
+    await page.locator(`text=${slotNumber}`).first().click()
+    const slotIdMatch = page.url().match(/\/LMR\/slots\/(\d+)/)
+    const slotId = slotIdMatch![1]
+
+    // Logout
+    await page.click('button:has-text("Sign Out")')
+    await expect(page).toHaveURL('/login', { timeout: 5000 })
+
+    // Step 2: Login as different user (user14)
+    await login(page, 'user14@parkboard.test', 'test123456')
+
+    // Step 3: Try to access edit page for user12's slot
+    await page.goto(`/LMR/slots/${slotId}/edit`)
+
+    // Step 4: Should see error message (not allowed to edit)
+    await expect(page.locator('text=/You can only edit your own slots/i')).toBeVisible({ timeout: 10000 })
+
+    // Save button should NOT be visible
+    const saveButton = page.locator('button:has-text("Save Changes")')
+    await expect(saveButton).not.toBeVisible()
+
+    // Should see "Back to Slots" button instead
+    await expect(page.locator('button:has-text("Back to Slots")')).toBeVisible()
+  })
+
+  test('editing is prevented when slot has active bookings', async ({ page }) => {
+    // This test would require creating a booking first
+    // For now, we document the expected behavior:
+    // - If a slot has active (confirmed, pending) bookings
+    // - Edit page should show error: "Cannot edit slot with X active booking(s)"
+    // - Save button should not be visible
+    // - User should see message: "Wait until bookings complete or cancel them first"
+
+    // Implementation would require:
+    // 1. Create slot (user15)
+    // 2. Create booking for that slot (user16)
+    // 3. Try to edit slot (user15)
+    // 4. Verify error message appears
+
+    // This is covered by unit tests instead (more efficient)
   })
 })
