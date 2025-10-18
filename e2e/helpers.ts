@@ -22,6 +22,14 @@ export async function login(page: Page, email: string, password: string) {
 
   // Verify we're on home page
   await expect(page).toHaveURL('/')
+
+  // CRITICAL: Wait for auth session to be fully established
+  // Supabase stores session in localStorage, which takes time to save
+  // Without this, navigating to protected routes loses the session
+  await page.waitForTimeout(2000)
+
+  // Verify auth is actually working by checking for Sign Out button
+  await page.waitForSelector('button:has-text("Sign Out")', { timeout: 10000 })
 }
 
 /**
