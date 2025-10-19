@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { CommunityProvider } from '@/lib/context/CommunityContext'
+import AuthWrapper from '@/components/auth/AuthWrapper'
 
 // Valid community codes (TODO: fetch from database in future)
 const VALID_COMMUNITIES = ['LMR', 'SRP', 'BGC']
@@ -70,16 +71,20 @@ export default async function CommunityLayout({
   // })
 
   // Provide community context to all child components
+  // AuthWrapper provides session context (user, profile, loading)
+  // CommunityProvider provides community context (code, name, displayName)
   return (
-    <CommunityProvider
-      value={{
-        code: community.code,
-        name: community.name,
-        displayName: community.displayName
-      }}
-    >
-      {children}
-    </CommunityProvider>
+    <AuthWrapper>
+      <CommunityProvider
+        value={{
+          code: community.code,
+          name: community.name,
+          displayName: community.displayName
+        }}
+      >
+        {children}
+      </CommunityProvider>
+    </AuthWrapper>
   )
 }
 

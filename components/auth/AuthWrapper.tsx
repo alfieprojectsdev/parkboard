@@ -520,6 +520,9 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
   // Why useEffect not direct router.push()?
   // - router.push() during render causes setState-in-render error
   // - useEffect runs AFTER render completes (safe for side effects)
+  //
+  // NOTE: router from useRouter() is stable and safe in dependencies
+  // (unlike supabase client which should never be in dependencies)
   // --------------------------------------------------------------------------
   useEffect(() => {
     if (!loading && !user) {

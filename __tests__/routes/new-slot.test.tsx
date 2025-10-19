@@ -228,6 +228,7 @@ describe('New Slot Listing Page (TEST-R007 - COMPREHENSIVE)', () => {
       await waitFor(() => {
         expect(mockInsert).toHaveBeenCalledWith({
           owner_id: 'user-123',
+          community_code: 'LMR', // Multi-tenant: Required field
           slot_number: 'A-10', // Should be uppercased
           slot_type: 'covered',
           description: 'Near elevator',

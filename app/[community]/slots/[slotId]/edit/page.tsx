@@ -6,7 +6,6 @@ import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useCommunity } from '@/lib/context/CommunityContext'
 import { useAuth } from '@/components/auth/AuthWrapper'
-import AuthWrapper from '@/components/auth/AuthWrapper'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -373,9 +372,9 @@ function EditSlotContent() {
 
 export default function EditSlotPage() {
   return (
-    <AuthWrapper>
+    <>
       <Navigation />
       <EditSlotContent />
-    </AuthWrapper>
+    </>
   )
 }
