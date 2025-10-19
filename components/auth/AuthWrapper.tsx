@@ -236,38 +236,63 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
       // - finally ensures loading stops whether success or failure
       // ----------------------------------------------------------------------
       try {
-        // 🎓 LEARNING: Supabase getSession() explained
+        // 🎓 LEARNING: Supabase getUser() explained
         // --------------------------------------------------------------------
-        // Returns: { data: { session }, error }
-        // session includes: user object, access_token, refresh_token
+        // Returns: { data: { user }, error }
+        // user object validated by Supabase Auth server
         //
-        // Why getSession() not getCurrentUser()?
-        // - getSession() reads from local storage (fast, no network)
-        // - getCurrentUser() hits API (slow, validates token)
-        // - On mount, we want fast load → use getSession()
+        // Why getUser() not getSession()?
+        // - getUser() validates with Auth server (secure, always fresh)
+        // - getSession() reads from cookies (fast but potentially stale/invalid)
+        // - For auth-critical flows, always use getUser()
+        //
+        // Security warning from Supabase:
+        // "Using the user object from getSession() could be insecure!
+        //  This value comes directly from storage and may not be authentic.
+        //  Use getUser() instead which authenticates with the Auth server."
+        //
+        // Reference: https://supabase.com/docs/reference/javascript/auth-getuser
         // --------------------------------------------------------------------
 
-        // Get current session
-        const { data: { session } } = await supabase.auth.getSession()
+        // Get authenticated user (server-validated)
+        const { data: { user }, error } = await supabase.auth.getUser()
+
+        // 🎓 LEARNING: Auth error handling
+        // --------------------------------------------------------------------
+        // getUser() can fail if:
+        // - Network error (can't reach Auth server)
+        // - Token expired/invalid
+        // - Auth server down
+        //
+        // When this happens:
+        // - Set user/profile to null (treat as not logged in)
+        // - Stop loading (don't hang forever)
+        // - Log error for debugging
+        // --------------------------------------------------------------------
+        if (error) {
+          console.error('[AuthWrapper] Auth error:', error)
+          if (!isMounted) return
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+          return
+        }
 
         // 🔍 CRITICAL FIX: Only setState if component is still mounted
         if (!isMounted) {
           return
         }
 
-        // 🎓 LEARNING: Optional chaining (?.) and nullish coalescing (||)
+        // 🎓 LEARNING: Nullish coalescing (||)
         // --------------------------------------------------------------------
-        // session?.user
-        //         ^
-        //         If session is null/undefined, return undefined (no error)
-        //
-        // session?.user || null
-        //               ^
-        //               If left side is falsy, use null
+        // user || null
+        //      ^
+        //      If user is falsy (undefined/null), use null
         //
         // Why? We want null not undefined (clearer intent: "no user")
+        // TypeScript prefers explicit null over undefined for "no value"
         // --------------------------------------------------------------------
-        setUser(session?.user || null)
+        setUser(user || null)
 
         // 🎓 LEARNING: Conditional data fetching
         // --------------------------------------------------------------------
@@ -281,12 +306,12 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
         // --------------------------------------------------------------------
 
         // If user exists, fetch their profile
-        if (session?.user) {
+        if (user) {
           // 🎓 LEARNING: Supabase query chain
           // ------------------------------------------------------------------
           // .from('user_profiles')   ← Which table
           // .select('*')             ← Which columns (* = all)
-          // .eq('id', session.user.id) ← WHERE id = ?
+          // .eq('id', user.id)       ← WHERE id = ?
           // .single()                ← Expect one row (throws if 0 or 2+)
           //
           // Returns: { data, error }
@@ -302,7 +327,7 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
           const { data: profileData, error: profileError } = await supabase
             .from('user_profiles')
             .select('*')
-            .eq('id', session.user.id)
+            .eq('id', user.id)
             .single()
 
           if (profileError) {

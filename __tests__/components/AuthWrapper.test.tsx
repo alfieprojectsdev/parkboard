@@ -16,7 +16,7 @@ jest.mock('next/navigation', () => ({
 }))
 
 // Mock Supabase client
-const mockGetSession = jest.fn()
+const mockGetUser = jest.fn()
 const mockSelect = jest.fn()
 const mockEq = jest.fn()
 const mockSingle = jest.fn()
@@ -27,7 +27,7 @@ const mockUnsubscribe = jest.fn()
 jest.mock('@/lib/supabase/client', () => ({
   createClient: jest.fn(() => ({
     auth: {
-      getSession: mockGetSession,
+      getUser: mockGetUser,
       onAuthStateChange: mockOnAuthStateChange,
     },
     from: mockFrom,
@@ -70,8 +70,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
 
   describe('Loading States', () => {
     it('renders loading spinner initially', () => {
-      mockGetSession.mockResolvedValue({
-        data: { session: null },
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: null,
       })
 
       render(
@@ -88,8 +89,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
     it('shows profile loading when user exists but profile is loading', async () => {
       const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       // Profile fetch is slow
@@ -115,8 +117,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
 
   describe('Unauthenticated User', () => {
     it('redirects to login when no session exists', async () => {
-      mockGetSession.mockResolvedValue({
-        data: { session: null },
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: null,
       })
 
       render(
@@ -134,8 +137,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
     })
 
     it('does not render children when unauthenticated', async () => {
-      mockGetSession.mockResolvedValue({
-        data: { session: null },
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: null,
       })
 
       render(
@@ -167,8 +171,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -200,8 +205,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -249,8 +255,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -273,8 +280,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
     })
 
     it('does not fetch profile when no session exists', async () => {
-      mockGetSession.mockResolvedValue({
-        data: { session: null },
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: null,
       })
 
       render(
@@ -306,8 +314,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -346,8 +355,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
       }
 
       // Start with no session
-      mockGetSession.mockResolvedValue({
-        data: { session: null },
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: null,
       })
 
       render(
@@ -389,8 +399,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -458,8 +469,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -502,8 +514,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
         unit_number: '10A',
       }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
@@ -534,10 +547,13 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
   // ============================================================================
 
   describe('Error Handling', () => {
-    it('handles getSession error gracefully', async () => {
+    it('handles getUser error gracefully', async () => {
       const consoleError = jest.spyOn(console, 'error').mockImplementation(() => {})
 
-      mockGetSession.mockRejectedValue(new Error('Session fetch failed'))
+      mockGetUser.mockResolvedValue({
+        data: { user: null },
+        error: new Error('Auth fetch failed'),
+      })
 
       render(
         <AuthWrapper>
@@ -547,7 +563,7 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
 
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
-          'Auth initialization error:',
+          '[AuthWrapper] Auth error:',
           expect.any(Error)
         )
       })
@@ -563,8 +579,9 @@ describe('AuthWrapper Component (TEST-A001 - COMPREHENSIVE)', () => {
     it('handles profile fetch error gracefully', async () => {
       const mockUser = { id: 'user-123', email: 'test@example.com' }
 
-      mockGetSession.mockResolvedValue({
-        data: { session: { user: mockUser } },
+      mockGetUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null,
       })
 
       mockSingle.mockResolvedValue({
