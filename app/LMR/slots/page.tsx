@@ -1,9 +1,8 @@
-// app/[community]/slots/page.tsx - Browse slots (HYBRID PRICING + MULTI-TENANT)
+// app/LMR/slots/page.tsx - Browse slots (HYBRID PRICING)
 'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useCommunity } from '@/lib/context/CommunityContext'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,7 +22,6 @@ interface Slot {
 }
 
 function SlotsContent() {
-  const community = useCommunity()
   const supabase = createClient()
   const [slots, setSlots] = useState<Slot[]>([])
   const [loading, setLoading] = useState(true)
@@ -103,7 +101,7 @@ function SlotsContent() {
     <div className="max-w-6xl mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Available Parking Slots</h1>
-        <Link href={`/${community.code}/slots/new`}>
+        <Link href="/LMR/slots/new">
           <Button>List Your Slot</Button>
         </Link>
       </div>
@@ -111,14 +109,14 @@ function SlotsContent() {
       {slots.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-gray-600 mb-4">No slots available yet.</p>
-          <Link href={`/${community.code}/slots/new`}>
+          <Link href="/LMR/slots/new">
             <Button>Be the first to list one!</Button>
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {slots.map(slot => (
-            <Link key={slot.slot_id} href={`/${community.code}/slots/${slot.slot_id}`}>
+            <Link key={slot.slot_id} href={`/LMR/slots/${slot.slot_id}`}>
               <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
                 <CardHeader>
                   <CardTitle className="flex justify-between items-start">

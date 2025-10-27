@@ -36,6 +36,10 @@ const PUBLIC_ROUTES = [
   '/login',              // Login page
   '/register',           // Registration page
   '/auth/callback',      // OAuth callback (if using social login)
+  '/LMR',                // LMR community landing page
+  '/LMR/',               // LMR community landing page (trailing slash)
+  '/LMR/slots',          // Browse LMR slots (no auth required)
+  '/LMR/slots/',         // Browse LMR slots (trailing slash)
 ]
 
 // ============================================================================
@@ -182,45 +186,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // ============================================================================
-  // COMMUNITY VALIDATION (Multi-Tenant Architecture)
-  // ============================================================================
-  // Validates community code in URL path (e.g., /LMR/slots)
-  // Added: 2025-10-13 for multi-tenant deployment
-  //
-  // Valid communities (hardcoded until database-driven validation)
-  const VALID_COMMUNITIES = ['LMR', 'SRP', 'BGC']
-
-  // Extract community code from pathname (e.g., /LMR/slots → LMR, /lmr → LMR)
-  // Pattern matches: /XYZ or /XYZ/anything
-  const communityMatch = pathname.match(/^\/([a-zA-Z]{2,4})(?:\/|$)/)
-
-  if (communityMatch) {
-    // Normalize to uppercase (e.g., /lmr → LMR)
-    const communityCode = communityMatch[1].toUpperCase()
-
-    // Check if community code is valid
-    if (!VALID_COMMUNITIES.includes(communityCode)) {
-      // Invalid community → redirect to root (shows community selector)
-      console.warn(`Invalid community code attempted: ${communityCode}`)
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  // ============================================================================
   // RULE 1: Protect non-public routes
   // ============================================================================
   // Check if this is a protected route (not in PUBLIC_ROUTES)
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route)
 
-  // NEW: Allow browsing community pages without login (but booking requires auth)
-  // Community landing pages (/LMR, /SRP) and slot listings (/LMR/slots) are public
-  // AuthWrapper in components will handle per-action auth (create slot, book slot, etc.)
-  const isCommunityBrowsePage = communityMatch && (
-    pathname.match(/^\/[A-Z]{2,4}\/?$/) || // /LMR or /LMR/
-    pathname.match(/^\/[A-Z]{2,4}\/slots\/?$/) // /LMR/slots
-  )
-
-  if (!session && !isPublicRoute && !isCommunityBrowsePage) {
+  if (!session && !isPublicRoute) {
     // User is NOT authenticated and trying to access protected route
     // → Redirect to login page
 

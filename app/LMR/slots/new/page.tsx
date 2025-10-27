@@ -1,10 +1,9 @@
-// app/[community]/slots/[slotId]/edit/page.tsx - Edit slot (HYBRID PRICING + MULTI-TENANT)
+// app/LMR/slots/new/page.tsx - List new slot (HYBRID PRICING)
 'use client'
 
-import { useState, useEffect, FormEvent } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useState, FormEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useCommunity } from '@/lib/context/CommunityContext'
 import { useAuth } from '@/components/auth/AuthWrapper'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,194 +11,116 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert } from '@/components/ui/alert'
 
-type SlotData = {
-  slot_id: number
-  owner_id: string
-  slot_number: string
-  slot_type: string
-  description: string | null
-  price_per_hour: number | null
-  status: string
-  community_code: string
-}
-
-function EditSlotContent() {
-  const community = useCommunity()
+function NewSlotContent() {
   const router = useRouter()
-  const params = useParams()
   const { user } = useAuth()
   const supabase = createClient()
 
-  const slotId = params?.slotId as string
-
   const [formData, setFormData] = useState({
+    slot_number: '',
     slot_type: 'covered',
     description: '',
-    pricing_type: 'explicit' as 'explicit' | 'request_quote',
+    pricing_type: 'explicit' as 'explicit' | 'request_quote',  // NEW: Pricing type
     price_per_hour: ''
   })
-  const [originalSlot, setOriginalSlot] = useState<SlotData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // ============================================================================
-  // FETCH SLOT DATA
-  // ============================================================================
-
-  useEffect(() => {
-    async function fetchSlot() {
-      if (!user || !slotId) return
-
-      try {
-        const { data: slot, error: fetchError } = await supabase
-          .from('parking_slots')
-          .select('*')
-          .eq('slot_id', parseInt(slotId))
-          .eq('community_code', community.code)
-          .single()
-
-        if (fetchError) throw fetchError
-        if (!slot) throw new Error('Slot not found')
-
-        // Check ownership
-        if (slot.owner_id !== user.id) {
-          throw new Error('You can only edit your own slots')
-        }
-
-        // Check for active bookings
-        const { data: activeBookings, error: bookingError } = await supabase
-          .from('bookings')
-          .select('booking_id')
-          .eq('slot_id', slot.slot_id)
-          .in('status', ['pending', 'confirmed'])
-          .gte('end_time', new Date().toISOString())
-
-        if (bookingError) throw bookingError
-
-        if (activeBookings && activeBookings.length > 0) {
-          setError(`Cannot edit slot with ${activeBookings.length} active booking(s). Wait until bookings complete or cancel them first.`)
-          setLoading(false)
-          return
-        }
-
-        // Set form data
-        setOriginalSlot(slot)
-        setFormData({
-          slot_type: slot.slot_type,
-          description: slot.description || '',
-          pricing_type: slot.price_per_hour === null ? 'request_quote' : 'explicit',
-          price_per_hour: slot.price_per_hour ? slot.price_per_hour.toString() : ''
-        })
-
-        setLoading(false)
-
-      } catch (err: unknown) {
-        const error = err as Error
-        console.error('Fetch slot error:', error)
-        setError(error.message)
-        setLoading(false)
-      }
-    }
-
-    fetchSlot()
-  }, [user, slotId, community.code, supabase])
-
-  // ============================================================================
-  // SUBMIT EDITED SLOT
+  // SUBMIT NEW SLOT (Updated for hybrid pricing)
   // ============================================================================
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setSubmitting(true)
+    setLoading(true)
     setError(null)
 
     try {
-      if (!originalSlot) throw new Error('Slot data not loaded')
+      // Validation
+      if (!formData.slot_number.trim()) {
+        throw new Error('Slot number is required')
+      }
 
-      // Validate pricing
+      // NEW: Conditional price validation based on pricing type
       let pricePerHour: number | null = null
 
       if (formData.pricing_type === 'explicit') {
+        // Explicit pricing requires a valid price
         pricePerHour = parseFloat(formData.price_per_hour)
 
         if (isNaN(pricePerHour) || pricePerHour <= 0) {
           throw new Error('Price must be greater than 0 for instant booking')
         }
       } else {
+        // Request Quote uses NULL price
         pricePerHour = null
       }
 
-      // Update slot
-      const { error: updateError } = await supabase
+      // Insert slot with conditional pricing
+      const { error: insertError } = await supabase
         .from('parking_slots')
-        .update({
+        .insert({
+          owner_id: user!.id,
+          slot_number: formData.slot_number.trim().toUpperCase(),
           slot_type: formData.slot_type,
           description: formData.description.trim() || null,
-          price_per_hour: pricePerHour,
-          updated_at: new Date().toISOString()
+          price_per_hour: pricePerHour,  // NEW: Can be NULL for Request Quote
+          status: 'active'
         })
-        .eq('slot_id', originalSlot.slot_id)
-        .eq('owner_id', user!.id) // Double-check ownership
 
-      if (updateError) throw updateError
+      if (insertError) {
+        // Handle duplicate slot number (unique constraint)
+        if (insertError.code === '23505') {
+          throw new Error('This slot number already exists. Please use a different number.')
+        }
+        throw insertError
+      }
 
-      // Success - redirect to slot detail
-      router.push(`/${community.code}/slots/${slotId}`)
+      // Success - redirect to slots listing
+      router.push('/LMR/slots')
 
     } catch (err: unknown) {
       const error = err as Error
-      console.error('Update slot error:', error)
+      console.error('Create slot error:', error)
       setError(error.message)
     } finally {
-      setSubmitting(false)
+      setLoading(false)
     }
   }
 
   // ============================================================================
-  // RENDER
+  // RENDER (Updated UI with pricing type selector)
   // ============================================================================
-
-  if (loading) {
-    return (
-      <div className="max-w-2xl mx-auto p-6">
-        <Card>
-          <CardContent className="p-12 text-center">
-            <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading slot details...</p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (error && !originalSlot) {
-    return (
-      <div className="max-w-2xl mx-auto p-6">
-        <Alert variant="destructive" className="mb-4">
-          {error}
-        </Alert>
-        <Button
-          variant="outline"
-          onClick={() => router.push(`/${community.code}/slots`)}
-        >
-          ← Back to Slots
-        </Button>
-      </div>
-    )
-  }
 
   return (
     <div className="max-w-2xl mx-auto p-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">Edit Parking Slot</CardTitle>
+          <CardTitle className="text-2xl">List Your Parking Slot</CardTitle>
           <p className="text-sm text-gray-600">
-            Slot Number: <strong>{originalSlot?.slot_number}</strong> (cannot be changed)
+            Share your parking space with the community
           </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Slot Number */}
+            <div>
+              <label htmlFor="slot_number" className="block text-sm font-medium mb-1">
+                Slot Number <span className="text-red-500">*</span>
+              </label>
+              <Input
+                id="slot_number"
+                type="text"
+                required
+                placeholder="A-123"
+                value={formData.slot_number}
+                onChange={(e) => setFormData({ ...formData, slot_number: e.target.value })}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This should match the number painted on your parking slot
+              </p>
+            </div>
+
             {/* Slot Type */}
             <div>
               <label htmlFor="slot_type" className="block text-sm font-medium mb-1">
@@ -214,7 +135,6 @@ function EditSlotContent() {
               >
                 <option value="covered">Covered</option>
                 <option value="uncovered">Uncovered</option>
-                <option value="tandem">Tandem</option>
               </select>
             </div>
 
@@ -233,20 +153,18 @@ function EditSlotContent() {
               />
             </div>
 
-            {/* Pricing Type Selector */}
+            {/* NEW: Pricing Type Selector */}
             <div className="border-t pt-4">
               <label className="block text-sm font-medium mb-3">
                 Pricing Options <span className="text-red-500">*</span>
               </label>
               <div className="space-y-3">
                 {/* Option 1: Explicit Pricing */}
-                <label
-                  className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                   style={{
                     borderColor: formData.pricing_type === 'explicit' ? '#3b82f6' : '#e5e7eb',
                     backgroundColor: formData.pricing_type === 'explicit' ? '#eff6ff' : 'white'
-                  }}
-                >
+                  }}>
                   <input
                     type="radio"
                     name="pricing_type"
@@ -263,19 +181,17 @@ function EditSlotContent() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      Set an hourly rate and allow instant bookings.
+                      Set an hourly rate and allow instant bookings. Renters can book immediately without contacting you.
                     </p>
                   </div>
                 </label>
 
                 {/* Option 2: Request Quote */}
-                <label
-                  className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
+                <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
                   style={{
                     borderColor: formData.pricing_type === 'request_quote' ? '#3b82f6' : '#e5e7eb',
                     backgroundColor: formData.pricing_type === 'request_quote' ? '#eff6ff' : 'white'
-                  }}
-                >
+                  }}>
                   <input
                     type="radio"
                     name="pricing_type"
@@ -292,14 +208,14 @@ function EditSlotContent() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 mt-1">
-                      Don&apos;t show pricing publicly. Renters contact you to discuss rates.
+                      Don&apos;t show pricing publicly. Renters will contact you to discuss rates and availability.
                     </p>
                   </div>
                 </label>
               </div>
             </div>
 
-            {/* Conditional Price Input */}
+            {/* Conditional Price Input - Only show for explicit pricing */}
             {formData.pricing_type === 'explicit' && (
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <label htmlFor="price_per_hour" className="block text-sm font-medium mb-2">
@@ -309,6 +225,7 @@ function EditSlotContent() {
                   id="price_per_hour"
                   type="number"
                   required
+                  min="1"
                   step="0.01"
                   placeholder="50.00"
                   value={formData.price_per_hour}
@@ -329,8 +246,12 @@ function EditSlotContent() {
                   <div>
                     <strong className="text-gray-900">Request Quote Mode</strong>
                     <p className="text-sm text-gray-700 mt-1">
-                      Your slot will be visible, but renters won&apos;t see a price.
-                      They&apos;ll contact you directly to discuss rates.
+                      Your slot will be visible in the marketplace, but renters won&apos;t see a price.
+                      They&apos;ll need to call or message you directly to discuss rates and book.
+                    </p>
+                    <p className="text-sm text-gray-700 mt-2">
+                      <strong>Tip:</strong> Make sure your phone number is up to date in your profile
+                      so renters can reach you easily.
                     </p>
                   </div>
                 </div>
@@ -349,18 +270,18 @@ function EditSlotContent() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push(`/${community.code}/slots/${slotId}`)}
-                disabled={submitting}
+                onClick={() => router.push('/LMR/slots')}
+                disabled={loading}
                 className="flex-1"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
-                disabled={submitting}
+                disabled={loading}
                 className="flex-1"
               >
-                {submitting ? 'Saving Changes...' : 'Save Changes'}
+                {loading ? 'Creating Listing...' : 'List Slot'}
               </Button>
             </div>
           </form>
@@ -370,11 +291,11 @@ function EditSlotContent() {
   )
 }
 
-export default function EditSlotPage() {
+export default function NewSlotPage() {
   return (
     <>
       <Navigation />
-      <EditSlotContent />
+      <NewSlotContent />
     </>
   )
 }

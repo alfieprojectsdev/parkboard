@@ -1,10 +1,9 @@
-// app/[community]/slots/[slotId]/page.tsx - Slot detail & booking (HYBRID PRICING + MULTI-TENANT)
+// app/LMR/slots/[slotId]/page.tsx - Slot detail & booking (HYBRID PRICING)
 'use client'
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useCommunity } from '@/lib/context/CommunityContext'
 import { useAuth } from '@/components/auth/AuthWrapper'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,7 +26,6 @@ interface SlotDetails {
 }
 
 function BookSlotContent() {
-  const community = useCommunity()
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
@@ -167,7 +165,7 @@ function BookSlotContent() {
 
       // Show success message then redirect
       setTimeout(() => {
-        router.push(`/${community.code}/bookings`)
+        router.push('/LMR/bookings')
       }, 2000)
 
     } catch (err: unknown) {
@@ -197,7 +195,7 @@ function BookSlotContent() {
         <Alert variant="destructive">
           Error loading slot: {error}
         </Alert>
-        <Button onClick={() => router.push(`/${community.code}/slots`)} className="mt-4">
+        <Button onClick={() => router.push('/LMR/slots')} className="mt-4">
           Back to Slots
         </Button>
       </div>
@@ -210,7 +208,7 @@ function BookSlotContent() {
         <Alert variant="destructive">
           Slot not found
         </Alert>
-        <Button onClick={() => router.push(`/${community.code}/slots`)} className="mt-4">
+        <Button onClick={() => router.push('/LMR/slots')} className="mt-4">
           Back to Slots
         </Button>
       </div>
@@ -236,7 +234,7 @@ function BookSlotContent() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => router.push(`/${community.code}/slots/${slotId}/edit`)}
+                onClick={() => router.push(`/LMR/slots/${slotId}/edit`)}
               >
                 ✏️ Edit Slot
               </Button>
@@ -350,7 +348,7 @@ function BookSlotContent() {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => router.push(`/${community.code}/slots`)}
+                      onClick={() => router.push('/LMR/slots')}
                       className="flex-1"
                       disabled={submitting}
                     >
@@ -419,7 +417,7 @@ function BookSlotContent() {
                   <div className="pt-4">
                     <Button
                       variant="outline"
-                      onClick={() => router.push(`/${community.code}/slots`)}
+                      onClick={() => router.push('/LMR/slots')}
                       className="w-full"
                     >
                       ← Back to Slot Listings

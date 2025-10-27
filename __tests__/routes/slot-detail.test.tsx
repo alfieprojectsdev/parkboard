@@ -7,16 +7,9 @@
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useParams, useRouter } from 'next/navigation'
-import BookSlotPage from '@/app/[community]/slots/[slotId]/page'
+import BookSlotPage from '@/app/LMR/slots/[slotId]/page'
 
-// Mock CommunityContext (required for multi-tenant pages)
-jest.mock('@/lib/context/CommunityContext', () => ({
-  useCommunity: () => ({
-    code: 'LMR',
-    name: 'Lumiere',
-    displayName: 'Lumiere Residences',
-  }),
-}))
+// CommunityContext mock removed (no longer needed in minimal MVP)
 
 // Mock UI components
 jest.mock('@/components/ui/card', () => ({
