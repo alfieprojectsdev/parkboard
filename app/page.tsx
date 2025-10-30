@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Button } from '@/components/ui/button'
+import AdBanner from '@/components/advertising/AdBanner'
 
 /**
  * Landing Page - Minimal MVP Version
@@ -25,6 +26,11 @@ export default async function Home() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 py-16 text-center">
+        {/* Header Banner - Supporting LMR Community Businesses */}
+        <div className="mb-8">
+          <AdBanner placement="header" />
+        </div>
+
         <h2 className="text-2xl font-semibold text-gray-800 mb-4">
           Stop the Viber chaos. Post slots here instead.
         </h2>
@@ -41,6 +47,11 @@ export default async function Home() {
               <Button size="lg" variant="outline">Post My Slot</Button>
             </Link>
           )}
+        </div>
+
+        {/* Inline Banner - Mid-page placement */}
+        <div className="mt-12">
+          <AdBanner placement="inline" />
         </div>
 
         <div className="mt-16 text-sm text-gray-500">
