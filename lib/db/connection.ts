@@ -43,7 +43,7 @@ export interface QueryOptions {
  * Priority order:
  * 1. Supabase (if NEXT_PUBLIC_SUPABASE_URL present)
  * 2. Neon (if DATABASE_URL contains "neon.tech")
- * 3. Local PostgreSQL (fallback for any other DATABASE_URL)
+ * 3. Local PostgreSQL (if DATABASE_URL or DB_HOST present)
  */
 export function getDatabaseType(): DatabaseType {
   // Check for Supabase (public env var indicates Supabase)
@@ -54,21 +54,27 @@ export function getDatabaseType(): DatabaseType {
   // Check for Neon or local Postgres (via DATABASE_URL)
   const databaseUrl = process.env.DATABASE_URL
 
-  if (!databaseUrl) {
-    throw new Error(
-      'No database connection configured. Set either:\n' +
-      '  - NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (for Supabase)\n' +
-      '  - DATABASE_URL (for Neon or local PostgreSQL)'
-    )
+  if (databaseUrl) {
+    // Detect Neon by checking if URL contains neon.tech
+    if (databaseUrl.includes('neon.tech')) {
+      return 'neon'
+    }
+    // DATABASE_URL present but not Neon = local Postgres
+    return 'local'
   }
 
-  // Detect Neon by checking if URL contains neon.tech
-  if (databaseUrl.includes('neon.tech')) {
-    return 'neon'
+  // Check for individual DB_* environment variables (local Postgres)
+  if (process.env.DB_HOST || process.env.DB_USER || process.env.DB_NAME) {
+    return 'local'
   }
 
-  // Default to local PostgreSQL
-  return 'local'
+  // No database configuration found
+  throw new Error(
+    'No database connection configured. Set either:\n' +
+    '  - NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (for Supabase)\n' +
+    '  - DATABASE_URL (for Neon or local PostgreSQL)\n' +
+    '  - DB_HOST + DB_USER + DB_NAME + DB_PASSWORD (for local PostgreSQL)'
+  )
 }
 
 /**
@@ -120,15 +126,28 @@ function getSupabaseClient() {
 
 /**
  * Gets or creates PostgreSQL connection pool (singleton)
- * Supports both Neon and local PostgreSQL
+ * Supports Neon (DATABASE_URL) and local PostgreSQL (DATABASE_URL or DB_* vars)
  */
 function getPostgresPool() {
   if (!postgresPool) {
-    const connectionString = process.env.DATABASE_URL!
+    let connectionString = process.env.DATABASE_URL
+
+    // If DATABASE_URL not present, build from individual DB_* variables
+    if (!connectionString) {
+      const dbUser = process.env.DB_USER || 'postgres'
+      const dbPassword = process.env.DB_PASSWORD || ''
+      const dbHost = process.env.DB_HOST || 'localhost'
+      const dbPort = process.env.DB_PORT || '5432'
+      const dbName = process.env.DB_NAME || 'parkboard_db'
+
+      connectionString = `postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbName}`
+    }
+
+    const isNeon = connectionString.includes('neon.tech')
 
     postgresPool = new Pool({
       connectionString,
-      ssl: connectionString.includes('neon.tech')
+      ssl: isNeon
         ? { rejectUnauthorized: false } // Neon requires SSL
         : undefined, // Local doesn't need SSL
       max: 20, // Maximum pool size
@@ -151,7 +170,10 @@ function getPostgresPool() {
 
 /**
  * Creates a Supabase-backed database connection
- * Translates standard SQL queries to Supabase RPC calls
+ * Uses Supabase's postgrest API for queries
+ *
+ * Note: For complex SQL operations, consider using PostgreSQL connection directly
+ * or creating specific RPC functions in Supabase
  */
 async function createSupabaseConnection(): Promise<DatabaseConnection> {
   const client = getSupabaseClient()
@@ -160,25 +182,40 @@ async function createSupabaseConnection(): Promise<DatabaseConnection> {
     type: 'supabase',
 
     query: async <T = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
-      // For Supabase, we'll use raw SQL via RPC
-      // Note: This requires a database function in Supabase
-      const { data, error } = await client.rpc('execute_sql', {
-        query_text: text,
-        query_params: params || []
-      })
+      // For Supabase, we execute raw SQL via rpc
+      // This requires the execute_sql function to exist in Supabase
+      // See: app/db/migrations/supabase_helpers/execute_sql_function.sql
 
-      if (error) {
-        throw new Error(`Supabase query error: ${error.message}`)
+      try {
+        const { data, error } = await client.rpc('execute_sql', {
+          query_text: text,
+          query_params: params || []
+        })
+
+        if (error) {
+          // If execute_sql doesn't exist yet, provide helpful error message
+          if (error.message.includes('function execute_sql')) {
+            throw new Error(
+              'Supabase helper function not installed. ' +
+              'Run: app/db/migrations/supabase_helpers/execute_sql_function.sql ' +
+              'Or switch to direct PostgreSQL connection using DATABASE_URL'
+            )
+          }
+          throw new Error(`Supabase query error: ${error.message}`)
+        }
+
+        // Convert Supabase response to pg QueryResult format
+        return {
+          rows: (data as any) || [],
+          rowCount: Array.isArray(data) ? data.length : 0,
+          command: '',
+          oid: 0,
+          fields: []
+        } as QueryResult<T>
+      } catch (error) {
+        const err = error as Error
+        throw new Error(`Supabase query failed: ${err.message}`)
       }
-
-      // Convert Supabase response to pg QueryResult format
-      return {
-        rows: (data as any) || [],
-        rowCount: Array.isArray(data) ? data.length : 0,
-        command: '',
-        oid: 0,
-        fields: []
-      } as QueryResult<T>
     },
 
     close: async () => {

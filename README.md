@@ -35,7 +35,7 @@ A peer-to-peer parking slot marketplace for condo residents. List your unused pa
 ```bash
 git clone <your-repo-url>
 cd parkboard
-git checkout parkboard-mvp-optimized
+git checkout minimal-mvp
 ```
 
 ### 2. Install Dependencies
@@ -44,7 +44,76 @@ git checkout parkboard-mvp-optimized
 npm install
 ```
 
-### 3. Set Up Supabase
+### 3. Database Setup
+
+ParkBoard supports three database options. Choose one:
+
+#### Option A: Local PostgreSQL (Recommended for Development)
+
+```bash
+# Install PostgreSQL (if not installed)
+# macOS: brew install postgresql
+# Ubuntu: sudo apt-get install postgresql
+# Windows: https://www.postgresql.org/download/windows/
+
+# Create database
+createdb parkboard
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local and set:
+# DATABASE_URL=postgresql://postgres:password@localhost:5432/parkboard
+
+# Run migrations
+chmod +x scripts/migrate.sh
+./scripts/migrate.sh
+
+# Verify setup
+./scripts/migrate.sh status
+```
+
+#### Option B: Supabase (Recommended for Production)
+
+```bash
+# 1. Create Supabase project at https://supabase.com/dashboard
+# 2. Get API keys from Project Settings → API
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local and set:
+# NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Run migrations
+./scripts/migrate.sh
+# Or use Supabase Dashboard → SQL Editor
+
+# Verify setup
+./scripts/migrate.sh status
+```
+
+#### Option C: Neon (Serverless PostgreSQL)
+
+```bash
+# 1. Create Neon project at https://neon.tech
+# 2. Copy connection string from dashboard
+
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local and set:
+# DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require
+
+# Run migrations
+./scripts/migrate.sh
+
+# Verify setup
+./scripts/migrate.sh status
+```
+
+**For detailed database setup instructions, see [docs/DATABASE.md](docs/DATABASE.md)**
+
+### 4. Set Up Supabase (Legacy - For Reference)
 
 #### A. Create a New Supabase Project
 
