@@ -25,6 +25,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getDevUserForMiddleware } from '@/lib/auth/dev-session'
 
 // ============================================================================
 // PUBLIC ROUTES - No authentication required
@@ -148,9 +149,20 @@ export async function middleware(request: NextRequest) {
   // RLS policies will double-check on actual database queries
   // --------------------------------------------------------------------------
 
+  // 🔧 DEV MODE: Check for dev session cookie first
+  // --------------------------------------------------------------------------
+  // If dev mode is enabled and dev session exists, treat as authenticated
+  // This bypasses Supabase auth for local MVP testing
+  // --------------------------------------------------------------------------
+  const devSessionCookie = request.cookies.get('parkboard_dev_session')?.value
+  const devUser = getDevUserForMiddleware(devSessionCookie)
+
   const {
     data: { session },
   } = await supabase.auth.getSession()
+
+  // Combine dev session and real session for auth check
+  const isAuthenticated = !!(devUser || session)
 
   // Get the pathname (e.g., "/slots", "/login")
   const pathname = request.nextUrl.pathname
@@ -191,7 +203,7 @@ export async function middleware(request: NextRequest) {
   // Check if this is a protected route (not in PUBLIC_ROUTES)
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route)
 
-  if (!session && !isPublicRoute) {
+  if (!isAuthenticated && !isPublicRoute) {
     // User is NOT authenticated and trying to access protected route
     // → Redirect to login page
 
@@ -219,7 +231,7 @@ export async function middleware(request: NextRequest) {
   // If user IS logged in, they shouldn't see login/register pages
   const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some((route) => pathname === route)
 
-  if (session && isAuthOnlyRoute) {
+  if (isAuthenticated && isAuthOnlyRoute) {
     // User is authenticated but trying to access login/register
     // → Redirect to community selector (multi-tenant: no default community)
     return NextResponse.redirect(new URL('/', request.url))

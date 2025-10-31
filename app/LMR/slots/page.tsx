@@ -1,4 +1,4 @@
-// app/LMR/slots/page.tsx - Browse slots (HYBRID PRICING)
+// app/LMR/slots/page.tsx - Browse slots (Minimal MVP)
 'use client'
 
 import { useEffect, useState } from 'react'
@@ -8,17 +8,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
+/**
+ * Browse Slots - Minimal MVP Version
+ *
+ * Displays available parking slots with:
+ * - Location (level, tower, landmark)
+ * - Time window (available from/until)
+ * - Status (available/taken/expired)
+ * - Owner contact info
+ */
+
 interface Slot {
-  slot_id: number
-  slot_number: string
-  slot_type: string
-  description: string | null
-  price_per_hour: number | null  // NEW: Can be NULL for Request Quote
+  id: string
+  location_level: string
+  location_tower: string
+  location_landmark: string | null
+  available_from: string
+  available_until: string
   status: string
+  notes: string | null
+  owner_id: string
   user_profiles: {
     name: string
-    phone: string
-  } | null
+    phone: string | null
+  }[]
 }
 
 function SlotsContent() {
@@ -27,42 +40,32 @@ function SlotsContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // ============================================================================
-  // TASK 1: Fetch Available Slots (unchanged - query handles NULL prices)
-  // ============================================================================
-
   useEffect(() => {
     async function fetchSlots() {
       try {
         const { data, error: fetchError } = await supabase
           .from('parking_slots')
           .select(`
-            slot_id,
-            slot_number,
-            slot_type,
-            description,
-            price_per_hour,
+            id,
+            location_level,
+            location_tower,
+            location_landmark,
+            available_from,
+            available_until,
             status,
+            notes,
+            owner_id,
             user_profiles (
               name,
               phone
             )
           `)
-          .eq('status', 'active')
-          .order('created_at', { ascending: false })
+          .eq('status', 'available')
+          .order('available_from', { ascending: true })
 
         if (fetchError) throw fetchError
 
-        // NEW: Optional client-side ranking (boost explicit pricing)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const rankedSlots = ((data as any) || []).sort((a: any, b: any) => {
-          // Slots with explicit pricing appear first
-          const aScore = a.price_per_hour ? 1 : 0.7
-          const bScore = b.price_per_hour ? 1 : 0.7
-          return bScore - aScore
-        })
-
-        setSlots(rankedSlots)
+        setSlots(data || [])
       } catch (err: unknown) {
         const error = err as Error
         console.error('Error fetching slots:', error)
@@ -75,9 +78,19 @@ function SlotsContent() {
     fetchSlots()
   }, []) // Run once on mount
 
-  // ============================================================================
-  // TASK 2: Render Slot Cards (Updated with conditional pricing display)
-  // ============================================================================
+  // Helper function to format date/time
+  function formatDateTime(dateString: string) {
+    const date = new Date(dateString)
+    const now = new Date()
+    const isToday = date.toDateString() === now.toDateString()
+    const isTomorrow = date.toDateString() === new Date(now.getTime() + 86400000).toDateString()
+
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+
+    if (isToday) return `Today ${timeStr}`
+    if (isTomorrow) return `Tomorrow ${timeStr}`
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+  }
 
   if (loading) {
     return (
@@ -102,7 +115,7 @@ function SlotsContent() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Available Parking Slots</h1>
         <Link href="/LMR/slots/new">
-          <Button>List Your Slot</Button>
+          <Button>Post Your Slot</Button>
         </Link>
       </div>
 
@@ -110,81 +123,71 @@ function SlotsContent() {
         <div className="text-center py-12">
           <p className="text-gray-600 mb-4">No slots available yet.</p>
           <Link href="/LMR/slots/new">
-            <Button>Be the first to list one!</Button>
+            <Button>Be the first to post one!</Button>
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {slots.map(slot => (
-            <Link key={slot.slot_id} href={`/LMR/slots/${slot.slot_id}`}>
-              <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <CardHeader>
-                  <CardTitle className="flex justify-between items-start">
-                    <span className="text-xl">Slot {slot.slot_number}</span>
-
-                    {/* NEW: Conditional pricing display */}
-                    <div className="text-right">
-                      {slot.price_per_hour ? (
-                        <>
-                          <span className="text-blue-600 text-lg font-bold">
-                            ₱{slot.price_per_hour}/hr
-                          </span>
-                          <div className="mt-1">
-                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                              ✓ Instant Booking
-                            </span>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <span className="text-gray-700 text-sm font-medium">
-                            Request Quote
-                          </span>
-                          <div className="mt-1">
-                            <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                              Contact Owner
-                            </span>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center text-gray-600">
-                      <span className="font-medium mr-2">Type:</span>
-                      <span className="capitalize">{slot.slot_type || 'Standard'}</span>
-                    </div>
-
-                    {slot.description && (
-                      <p className="text-gray-600 line-clamp-2">
-                        {slot.description}
-                      </p>
-                    )}
-
-                    {slot.user_profiles && (
-                      <div className="pt-2 border-t">
-                        <p className="text-xs text-gray-500">
-                          Owner: {slot.user_profiles.name}
-                        </p>
+            <Card key={slot.id} className="hover:shadow-lg transition-shadow h-full">
+              <CardHeader>
+                <CardTitle className="flex justify-between items-start">
+                  <div>
+                    <div className="text-lg font-bold">{slot.location_level} {slot.location_tower}</div>
+                    {slot.location_landmark && (
+                      <div className="text-sm font-normal text-gray-600 mt-1">
+                        {slot.location_landmark}
                       </div>
                     )}
-
-                    {/* NEW: Conditional button text */}
-                    {slot.price_per_hour ? (
-                      <Button className="w-full mt-3" size="sm">
-                        Book Now
-                      </Button>
-                    ) : (
-                      <Button className="w-full mt-3" size="sm" variant="outline">
-                        View Details
-                      </Button>
-                    )}
                   </div>
-                </CardContent>
-              </Card>
-            </Link>
+                  <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                    Available
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-sm">
+                  {/* Time Window */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-blue-600 mt-0.5">📅</span>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-600 mb-1">Available:</div>
+                        <div className="font-medium text-gray-900">{formatDateTime(slot.available_from)}</div>
+                        <div className="text-xs text-gray-600 mt-1">Until:</div>
+                        <div className="font-medium text-gray-900">{formatDateTime(slot.available_until)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes */}
+                  {slot.notes && (
+                    <p className="text-gray-600 text-xs line-clamp-2 italic">
+                      &quot;{slot.notes}&quot;
+                    </p>
+                  )}
+
+                  {/* Owner Info */}
+                  {slot.user_profiles && slot.user_profiles.length > 0 && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs text-gray-500">
+                        Posted by: <span className="font-medium">{slot.user_profiles[0].name}</span>
+                      </p>
+                      {slot.user_profiles[0].phone && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Contact: <span className="font-medium">{slot.user_profiles[0].phone}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Contact Button */}
+                  <Button className="w-full mt-3" size="sm" variant="outline">
+                    Contact Owner
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

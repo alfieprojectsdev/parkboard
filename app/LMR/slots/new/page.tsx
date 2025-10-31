@@ -1,34 +1,43 @@
-// app/LMR/slots/new/page.tsx - List new slot (HYBRID PRICING)
+// app/LMR/slots/new/page.tsx - Post Slot (Minimal MVP)
 'use client'
 
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/components/auth/AuthWrapper'
+import { getDevSession } from '@/lib/auth/dev-session'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Alert } from '@/components/ui/alert'
 
+/**
+ * Post Slot - Minimal MVP Version
+ *
+ * Simplified from complex booking system to direct contact model.
+ * - Location-based (P1-P6, tower, landmark) instead of slot numbers
+ * - Time window (from/until) instead of pricing/bookings
+ * - Status updates (AVAILABLE → TAKEN) instead of booking management
+ * - Direct contact (Viber/phone) instead of booking system
+ *
+ * Matches schema from 001_core_schema.sql
+ */
 function NewSlotContent() {
   const router = useRouter()
-  const { user } = useAuth()
   const supabase = createClient()
 
   const [formData, setFormData] = useState({
-    slot_number: '',
-    slot_type: 'covered',
-    description: '',
-    pricing_type: 'explicit' as 'explicit' | 'request_quote',  // NEW: Pricing type
-    price_per_hour: ''
+    location_level: 'P1',
+    location_tower: 'East Tower',
+    location_landmark: '',
+    available_from_date: '',
+    available_from_time: '',
+    available_until_date: '',
+    available_until_time: '',
+    notes: ''
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // ============================================================================
-  // SUBMIT NEW SLOT (Updated for hybrid pricing)
-  // ============================================================================
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -36,48 +45,65 @@ function NewSlotContent() {
     setError(null)
 
     try {
-      // Validation
-      if (!formData.slot_number.trim()) {
-        throw new Error('Slot number is required')
-      }
+      // Get authenticated user - check dev session first, then Supabase
+      const devSession = getDevSession()
+      let userId: string | undefined
 
-      // NEW: Conditional price validation based on pricing type
-      let pricePerHour: number | null = null
-
-      if (formData.pricing_type === 'explicit') {
-        // Explicit pricing requires a valid price
-        pricePerHour = parseFloat(formData.price_per_hour)
-
-        if (isNaN(pricePerHour) || pricePerHour <= 0) {
-          throw new Error('Price must be greater than 0 for instant booking')
-        }
+      if (devSession) {
+        // Dev mode - use dev session user ID
+        userId = devSession.user_id
       } else {
-        // Request Quote uses NULL price
-        pricePerHour = null
+        // Production mode - use Supabase auth
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          throw new Error('You must be logged in to post a slot')
+        }
+        userId = user.id
       }
 
-      // Insert slot with conditional pricing
-      const { error: insertError } = await supabase
+      if (!userId) {
+        throw new Error('You must be logged in to post a slot')
+      }
+
+      // Validate required fields
+      if (!formData.available_from_date || !formData.available_from_time) {
+        throw new Error('Please set when your slot becomes available')
+      }
+      if (!formData.available_until_date || !formData.available_until_time) {
+        throw new Error('Please set when your slot becomes unavailable')
+      }
+
+      // Combine date and time into timestamps
+      const availableFrom = new Date(`${formData.available_from_date}T${formData.available_from_time}`)
+      const availableUntil = new Date(`${formData.available_until_date}T${formData.available_until_time}`)
+
+      // Validate time range
+      if (availableUntil <= availableFrom) {
+        throw new Error('End time must be after start time')
+      }
+
+      // Insert slot using Supabase client
+      const { data, error: insertError } = await supabase
         .from('parking_slots')
         .insert({
-          owner_id: user!.id,
-          slot_number: formData.slot_number.trim().toUpperCase(),
-          slot_type: formData.slot_type,
-          description: formData.description.trim() || null,
-          price_per_hour: pricePerHour,  // NEW: Can be NULL for Request Quote
-          status: 'active'
+          owner_id: userId,
+          location_level: formData.location_level,
+          location_tower: formData.location_tower,
+          location_landmark: formData.location_landmark || null,
+          available_from: availableFrom.toISOString(),
+          available_until: availableUntil.toISOString(),
+          status: 'available',
+          notes: formData.notes || null
         })
+        .select()
+        .single()
 
-      if (insertError) {
-        // Handle duplicate slot number (unique constraint)
-        if (insertError.code === '23505') {
-          throw new Error('This slot number already exists. Please use a different number.')
-        }
-        throw insertError
+      if (insertError) throw insertError
+
+      if (data) {
+        // Success - redirect to slots listing
+        router.push('/LMR/slots')
       }
-
-      // Success - redirect to slots listing
-      router.push('/LMR/slots')
 
     } catch (err: unknown) {
       const error = err as Error
@@ -88,175 +114,136 @@ function NewSlotContent() {
     }
   }
 
-  // ============================================================================
-  // RENDER (Updated UI with pricing type selector)
-  // ============================================================================
-
   return (
     <div className="max-w-2xl mx-auto p-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-2xl">List Your Parking Slot</CardTitle>
+          <CardTitle className="text-2xl">Share Your Parking Slot</CardTitle>
           <p className="text-sm text-gray-600">
-            Share your parking space with the community
+            Simple as posting on Viber - tell neighbors when your slot is free
           </p>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Slot Number */}
-            <div>
-              <label htmlFor="slot_number" className="block text-sm font-medium mb-1">
-                Slot Number <span className="text-red-500">*</span>
-              </label>
-              <Input
-                id="slot_number"
-                type="text"
-                required
-                placeholder="A-123"
-                value={formData.slot_number}
-                onChange={(e) => setFormData({ ...formData, slot_number: e.target.value })}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                This should match the number painted on your parking slot
-              </p>
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Location Section */}
+            <div className="space-y-4 border-b pb-4">
+              <h3 className="font-medium text-gray-900">Where is your slot?</h3>
 
-            {/* Slot Type */}
-            <div>
-              <label htmlFor="slot_type" className="block text-sm font-medium mb-1">
-                Slot Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="slot_type"
-                required
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={formData.slot_type}
-                onChange={(e) => setFormData({ ...formData, slot_type: e.target.value })}
-              >
-                <option value="covered">Covered</option>
-                <option value="uncovered">Uncovered</option>
-              </select>
-            </div>
-
-            {/* Description */}
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium mb-1">
-                Description (Optional)
-              </label>
-              <textarea
-                id="description"
-                rows={3}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., Near elevator, easy access, EV charging available..."
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-
-            {/* NEW: Pricing Type Selector */}
-            <div className="border-t pt-4">
-              <label className="block text-sm font-medium mb-3">
-                Pricing Options <span className="text-red-500">*</span>
-              </label>
-              <div className="space-y-3">
-                {/* Option 1: Explicit Pricing */}
-                <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                  style={{
-                    borderColor: formData.pricing_type === 'explicit' ? '#3b82f6' : '#e5e7eb',
-                    backgroundColor: formData.pricing_type === 'explicit' ? '#eff6ff' : 'white'
-                  }}>
-                  <input
-                    type="radio"
-                    name="pricing_type"
-                    value="explicit"
-                    checked={formData.pricing_type === 'explicit'}
-                    onChange={() => setFormData({ ...formData, pricing_type: 'explicit' })}
-                    className="mt-1 mr-3"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">Set Fixed Price</span>
-                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                        ✓ Instant Booking
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Set an hourly rate and allow instant bookings. Renters can book immediately without contacting you.
-                    </p>
-                  </div>
+              {/* Parking Level */}
+              <div>
+                <label htmlFor="location_level" className="block text-sm font-medium mb-1">
+                  Parking Level <span className="text-red-500">*</span>
                 </label>
-
-                {/* Option 2: Request Quote */}
-                <label className="flex items-start p-3 border-2 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors"
-                  style={{
-                    borderColor: formData.pricing_type === 'request_quote' ? '#3b82f6' : '#e5e7eb',
-                    backgroundColor: formData.pricing_type === 'request_quote' ? '#eff6ff' : 'white'
-                  }}>
-                  <input
-                    type="radio"
-                    name="pricing_type"
-                    value="request_quote"
-                    checked={formData.pricing_type === 'request_quote'}
-                    onChange={() => setFormData({ ...formData, pricing_type: 'request_quote' })}
-                    className="mt-1 mr-3"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">Request Quote</span>
-                      <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                        Contact Required
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Don&apos;t show pricing publicly. Renters will contact you to discuss rates and availability.
-                    </p>
-                  </div>
-                </label>
+                <select
+                  id="location_level"
+                  required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.location_level}
+                  onChange={(e) => setFormData({ ...formData, location_level: e.target.value })}
+                >
+                  <option value="P1">P1 (Ground Level)</option>
+                  <option value="P2">P2</option>
+                  <option value="P3">P3</option>
+                  <option value="P4">P4</option>
+                  <option value="P5">P5</option>
+                  <option value="P6">P6 (Top Level)</option>
+                </select>
               </div>
-            </div>
 
-            {/* Conditional Price Input - Only show for explicit pricing */}
-            {formData.pricing_type === 'explicit' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <label htmlFor="price_per_hour" className="block text-sm font-medium mb-2">
-                  Price Per Hour (₱) <span className="text-red-500">*</span>
+              {/* Tower */}
+              <div>
+                <label htmlFor="location_tower" className="block text-sm font-medium mb-1">
+                  Tower <span className="text-red-500">*</span>
+                </label>
+                <select
+                  id="location_tower"
+                  required
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.location_tower}
+                  onChange={(e) => setFormData({ ...formData, location_tower: e.target.value })}
+                >
+                  <option value="East Tower">East Tower</option>
+                  <option value="North Tower">North Tower</option>
+                  <option value="West Tower">West Tower</option>
+                </select>
+              </div>
+
+              {/* Landmark (Optional) */}
+              <div>
+                <label htmlFor="location_landmark" className="block text-sm font-medium mb-1">
+                  Landmark / Description (Optional)
                 </label>
                 <Input
-                  id="price_per_hour"
-                  type="number"
-                  required
-                  min="1"
-                  step="0.01"
-                  placeholder="50.00"
-                  value={formData.price_per_hour}
-                  onChange={(e) => setFormData({ ...formData, price_per_hour: e.target.value })}
-                  className="bg-white"
+                  id="location_landmark"
+                  type="text"
+                  placeholder="e.g., near elevator, corner spot"
+                  value={formData.location_landmark}
+                  onChange={(e) => setFormData({ ...formData, location_landmark: e.target.value })}
                 />
-                <p className="text-xs text-gray-600 mt-2">
-                  Suggested: ₱30-100/hour depending on location and amenities
-                </p>
               </div>
-            )}
+            </div>
 
-            {/* Request Quote Explanation */}
-            {formData.pricing_type === 'request_quote' && (
-              <Alert className="bg-yellow-50 border-yellow-200">
-                <div className="flex items-start gap-2">
-                  <span className="text-yellow-600 text-lg">ℹ️</span>
-                  <div>
-                    <strong className="text-gray-900">Request Quote Mode</strong>
-                    <p className="text-sm text-gray-700 mt-1">
-                      Your slot will be visible in the marketplace, but renters won&apos;t see a price.
-                      They&apos;ll need to call or message you directly to discuss rates and book.
-                    </p>
-                    <p className="text-sm text-gray-700 mt-2">
-                      <strong>Tip:</strong> Make sure your phone number is up to date in your profile
-                      so renters can reach you easily.
-                    </p>
-                  </div>
+            {/* Availability Section */}
+            <div className="space-y-4 border-b pb-4">
+              <h3 className="font-medium text-gray-900">When is it available?</h3>
+
+              {/* Available From */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Available From <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    required
+                    value={formData.available_from_date}
+                    onChange={(e) => setFormData({ ...formData, available_from_date: e.target.value })}
+                  />
+                  <Input
+                    type="time"
+                    required
+                    value={formData.available_from_time}
+                    onChange={(e) => setFormData({ ...formData, available_from_time: e.target.value })}
+                  />
                 </div>
-              </Alert>
-            )}
+              </div>
+
+              {/* Available Until */}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Available Until <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input
+                    type="date"
+                    required
+                    value={formData.available_until_date}
+                    onChange={(e) => setFormData({ ...formData, available_until_date: e.target.value })}
+                  />
+                  <Input
+                    type="time"
+                    required
+                    value={formData.available_until_time}
+                    onChange={(e) => setFormData({ ...formData, available_until_time: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Notes Section */}
+            <div>
+              <label htmlFor="notes" className="block text-sm font-medium mb-1">
+                Additional Notes (Optional)
+              </label>
+              <textarea
+                id="notes"
+                rows={3}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Any special instructions or notes for neighbors..."
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              />
+            </div>
 
             {/* Error Display */}
             {error && (
@@ -265,28 +252,33 @@ function NewSlotContent() {
               </Alert>
             )}
 
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => router.push('/LMR/slots')}
-                disabled={loading}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
+            {/* Submit Button */}
+            <div className="flex gap-3">
               <Button
                 type="submit"
                 disabled={loading}
                 className="flex-1"
               >
-                {loading ? 'Creating Listing...' : 'List Slot'}
+                {loading ? 'Posting...' : 'Post Slot'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push('/LMR/slots')}
+                disabled={loading}
+              >
+                Cancel
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      {/* Help Text */}
+      <div className="mt-4 text-sm text-gray-500 text-center">
+        <p>After posting, neighbors can see your slot and contact you directly.</p>
+        <p className="mt-1">Update status to "TAKEN" once someone uses it.</p>
+      </div>
     </div>
   )
 }
