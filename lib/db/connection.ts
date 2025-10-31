@@ -40,12 +40,32 @@ export interface QueryOptions {
 /**
  * Detects which database type to use based on environment variables
  *
- * Priority order:
- * 1. Supabase (if NEXT_PUBLIC_SUPABASE_URL present)
- * 2. Neon (if DATABASE_URL contains "neon.tech")
- * 3. Local PostgreSQL (if DATABASE_URL or DB_HOST present)
+ * Priority order (ROOT APPROVED 2025-10-31):
+ * 1. DATABASE_TARGET (explicit choice for beta testing - "local" | "neon" | "supabase")
+ * 2. Supabase (if NEXT_PUBLIC_SUPABASE_URL present)
+ * 3. Neon (if DATABASE_URL contains "neon.tech")
+ * 4. Local PostgreSQL (if DATABASE_URL or DB_HOST present)
+ *
+ * The DATABASE_TARGET override allows Sister Elena to easily switch databases
+ * for beta testing without code changes (just update .env.local).
  */
 export function getDatabaseType(): DatabaseType {
+  // Check for explicit DATABASE_TARGET override (beta testing feature)
+  const target = process.env.DATABASE_TARGET
+  if (target) {
+    const validTargets: DatabaseType[] = ['local', 'neon', 'supabase']
+    if (validTargets.includes(target as DatabaseType)) {
+      return target as DatabaseType
+    } else {
+      console.warn(
+        `Invalid DATABASE_TARGET="${target}". Must be "local", "neon", or "supabase". ` +
+        `Falling back to auto-detection.`
+      )
+    }
+  }
+
+  // Auto-detection (original behavior)
+
   // Check for Supabase (public env var indicates Supabase)
   if (process.env.NEXT_PUBLIC_SUPABASE_URL) {
     return 'supabase'
@@ -71,6 +91,7 @@ export function getDatabaseType(): DatabaseType {
   // No database configuration found
   throw new Error(
     'No database connection configured. Set either:\n' +
+    '  - DATABASE_TARGET=local|neon|supabase (explicit choice, recommended for beta testing)\n' +
     '  - NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (for Supabase)\n' +
     '  - DATABASE_URL (for Neon or local PostgreSQL)\n' +
     '  - DB_HOST + DB_USER + DB_NAME + DB_PASSWORD (for local PostgreSQL)'
@@ -126,13 +147,14 @@ function getSupabaseClient() {
 
 /**
  * Gets or creates PostgreSQL connection pool (singleton)
- * Supports Neon (DATABASE_URL) and local PostgreSQL (DATABASE_URL or DB_* vars)
+ * Supports Neon (NEON_CONNECTION_STRING or DATABASE_URL) and local PostgreSQL (DATABASE_URL or DB_* vars)
  */
 function getPostgresPool() {
   if (!postgresPool) {
-    let connectionString = process.env.DATABASE_URL
+    // Priority: NEON_CONNECTION_STRING > DATABASE_URL > DB_* variables
+    let connectionString = process.env.NEON_CONNECTION_STRING || process.env.DATABASE_URL
 
-    // If DATABASE_URL not present, build from individual DB_* variables
+    // If neither connection string present, build from individual DB_* variables
     if (!connectionString) {
       const dbUser = process.env.DB_USER || 'postgres'
       const dbPassword = process.env.DB_PASSWORD || ''
