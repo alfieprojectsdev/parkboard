@@ -6,16 +6,9 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import BookingsPage from '@/app/[community]/bookings/page'
+import BookingsPage from '@/app/LMR/bookings/page'
 
-// Mock CommunityContext (required for multi-tenant pages)
-jest.mock('@/lib/context/CommunityContext', () => ({
-  useCommunity: () => ({
-    code: 'LMR',
-    name: 'Lumiere',
-    displayName: 'Lumiere Residences',
-  }),
-}))
+// CommunityContext mock removed (no longer needed in minimal MVP)
 
 // Mock Navigation
 jest.mock('@/components/common/Navigation', () => {

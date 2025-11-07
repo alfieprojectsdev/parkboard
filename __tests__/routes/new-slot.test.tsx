@@ -7,16 +7,9 @@
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useRouter } from 'next/navigation'
-import NewSlotPage from '@/app/[community]/slots/new/page'
+import NewSlotPage from '@/app/LMR/slots/new/page'
 
-// Mock CommunityContext (required for multi-tenant pages)
-jest.mock('@/lib/context/CommunityContext', () => ({
-  useCommunity: () => ({
-    code: 'LMR',
-    name: 'Lumiere',
-    displayName: 'Lumiere Residences',
-  }),
-}))
+// CommunityContext mock removed (no longer needed in minimal MVP)
 
 // Mock Navigation
 jest.mock('@/components/common/Navigation', () => {
@@ -228,7 +221,7 @@ describe('New Slot Listing Page (TEST-R007 - COMPREHENSIVE)', () => {
       await waitFor(() => {
         expect(mockInsert).toHaveBeenCalledWith({
           owner_id: 'user-123',
-          community_code: 'LMR', // Multi-tenant: Required field
+          // community_code removed (column no longer exists in minimal MVP)
           slot_number: 'A-10', // Should be uppercased
           slot_type: 'covered',
           description: 'Near elevator',

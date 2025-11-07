@@ -7,14 +7,7 @@
 import { render, screen } from '@testing-library/react'
 import Navigation from '@/components/common/Navigation'
 
-// Mock CommunityContext (required for multi-tenant navigation)
-jest.mock('@/lib/context/CommunityContext', () => ({
-  useCommunity: () => ({
-    code: 'LMR',
-    name: 'Lumiere',
-    displayName: 'Lumiere Residences',
-  }),
-}))
+// CommunityContext mock removed (no longer needed in minimal MVP)
 
 // Mock AuthWrapper context
 jest.mock('@/components/auth/AuthWrapper', () => ({

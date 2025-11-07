@@ -25,6 +25,7 @@
 
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getDevUserForMiddleware } from '@/lib/auth/dev-session'
 
 // ============================================================================
 // PUBLIC ROUTES - No authentication required
@@ -36,6 +37,10 @@ const PUBLIC_ROUTES = [
   '/login',              // Login page
   '/register',           // Registration page
   '/auth/callback',      // OAuth callback (if using social login)
+  '/LMR',                // LMR community landing page
+  '/LMR/',               // LMR community landing page (trailing slash)
+  '/LMR/slots',          // Browse LMR slots (no auth required)
+  '/LMR/slots/',         // Browse LMR slots (trailing slash)
 ]
 
 // ============================================================================
@@ -144,9 +149,20 @@ export async function middleware(request: NextRequest) {
   // RLS policies will double-check on actual database queries
   // --------------------------------------------------------------------------
 
+  // 🔧 DEV MODE: Check for dev session cookie first
+  // --------------------------------------------------------------------------
+  // If dev mode is enabled and dev session exists, treat as authenticated
+  // This bypasses Supabase auth for local MVP testing
+  // --------------------------------------------------------------------------
+  const devSessionCookie = request.cookies.get('parkboard_dev_session')?.value
+  const devUser = getDevUserForMiddleware(devSessionCookie)
+
   const {
     data: { session },
   } = await supabase.auth.getSession()
+
+  // Combine dev session and real session for auth check
+  const isAuthenticated = !!(devUser || session)
 
   // Get the pathname (e.g., "/slots", "/login")
   const pathname = request.nextUrl.pathname
@@ -182,45 +198,12 @@ export async function middleware(request: NextRequest) {
   }
 
   // ============================================================================
-  // COMMUNITY VALIDATION (Multi-Tenant Architecture)
-  // ============================================================================
-  // Validates community code in URL path (e.g., /LMR/slots)
-  // Added: 2025-10-13 for multi-tenant deployment
-  //
-  // Valid communities (hardcoded until database-driven validation)
-  const VALID_COMMUNITIES = ['LMR', 'SRP', 'BGC']
-
-  // Extract community code from pathname (e.g., /LMR/slots → LMR, /lmr → LMR)
-  // Pattern matches: /XYZ or /XYZ/anything
-  const communityMatch = pathname.match(/^\/([a-zA-Z]{2,4})(?:\/|$)/)
-
-  if (communityMatch) {
-    // Normalize to uppercase (e.g., /lmr → LMR)
-    const communityCode = communityMatch[1].toUpperCase()
-
-    // Check if community code is valid
-    if (!VALID_COMMUNITIES.includes(communityCode)) {
-      // Invalid community → redirect to root (shows community selector)
-      console.warn(`Invalid community code attempted: ${communityCode}`)
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  }
-
-  // ============================================================================
   // RULE 1: Protect non-public routes
   // ============================================================================
   // Check if this is a protected route (not in PUBLIC_ROUTES)
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route)
 
-  // NEW: Allow browsing community pages without login (but booking requires auth)
-  // Community landing pages (/LMR, /SRP) and slot listings (/LMR/slots) are public
-  // AuthWrapper in components will handle per-action auth (create slot, book slot, etc.)
-  const isCommunityBrowsePage = communityMatch && (
-    pathname.match(/^\/[A-Z]{2,4}\/?$/) || // /LMR or /LMR/
-    pathname.match(/^\/[A-Z]{2,4}\/slots\/?$/) // /LMR/slots
-  )
-
-  if (!session && !isPublicRoute && !isCommunityBrowsePage) {
+  if (!isAuthenticated && !isPublicRoute) {
     // User is NOT authenticated and trying to access protected route
     // → Redirect to login page
 
@@ -248,7 +231,7 @@ export async function middleware(request: NextRequest) {
   // If user IS logged in, they shouldn't see login/register pages
   const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some((route) => pathname === route)
 
-  if (session && isAuthOnlyRoute) {
+  if (isAuthenticated && isAuthOnlyRoute) {
     // User is authenticated but trying to access login/register
     // → Redirect to community selector (multi-tenant: no default community)
     return NextResponse.redirect(new URL('/', request.url))

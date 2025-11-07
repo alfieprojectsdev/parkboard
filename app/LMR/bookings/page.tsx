@@ -1,9 +1,8 @@
-// app/[community]/bookings/page.tsx - My bookings (MULTI-TENANT)
+// app/LMR/bookings/page.tsx - My bookings
 'use client'
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useCommunity } from '@/lib/context/CommunityContext'
 import { useAuth } from '@/components/auth/AuthWrapper'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,7 +27,6 @@ interface Booking {
 }
 
 function BookingsContent() {
-  const community = useCommunity()
   const { user } = useAuth()
   const supabase = createClient()
 
@@ -175,7 +173,7 @@ function BookingsContent() {
       <div className="max-w-6xl mx-auto p-6">
         <div className="text-center py-12">
           <p className="text-gray-600 mb-4 text-lg">You haven&apos;t made any bookings yet.</p>
-          <Link href={`/${community.code}/slots`}>
+          <Link href="/LMR/slots">
             <Button>Browse Available Slots</Button>
           </Link>
         </div>

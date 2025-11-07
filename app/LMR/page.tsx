@@ -1,21 +1,19 @@
 'use client'
 
-import { useCommunity } from '@/lib/context/CommunityContext'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 /**
- * Community Landing Page
- * Entry point for each community (e.g., /LMR)
+ * LMR Landing Page
+ * Entry point for Lumiere Residences
  *
  * Features:
  * - Welcome message with community branding
  * - Quick action cards for main features
  * - Mobile-friendly layout
  */
-export default function CommunityHome() {
-  const community = useCommunity()
+export default function LMRHome() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
@@ -23,13 +21,13 @@ export default function CommunityHome() {
       <div className="max-w-6xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-4">
-            Welcome to {community.displayName}
+            Welcome to Lumiere Residences
           </h1>
           <p className="text-xl sm:text-2xl text-gray-600 mb-2">
             Park smarter with your neighbors
           </p>
           <p className="text-sm text-gray-500">
-            Community Code: <span className="font-mono font-bold">{community.code}</span>
+            Community Code: <span className="font-mono font-bold">LMR</span>
           </p>
         </div>
 
@@ -47,7 +45,7 @@ export default function CommunityHome() {
               <p className="text-gray-600 mb-4">
                 Find available parking slots from your neighbors
               </p>
-              <Link href={`/${community.code}/slots`}>
+              <Link href="/LMR/slots">
                 <Button className="w-full" size="lg">
                   View Available Slots
                 </Button>
@@ -67,7 +65,7 @@ export default function CommunityHome() {
               <p className="text-gray-600 mb-4">
                 Earn money by renting out your parking space
               </p>
-              <Link href={`/${community.code}/slots/new`}>
+              <Link href="/LMR/slots/new">
                 <Button className="w-full" size="lg" variant="outline">
                   List Your Slot
                 </Button>
@@ -87,7 +85,7 @@ export default function CommunityHome() {
               <p className="text-gray-600 mb-4">
                 View and manage your parking reservations
               </p>
-              <Link href={`/${community.code}/bookings`}>
+              <Link href="/LMR/bookings">
                 <Button className="w-full" size="lg" variant="outline">
                   View Bookings
                 </Button>
@@ -107,7 +105,7 @@ export default function CommunityHome() {
                 <div className="text-4xl mb-3">1️⃣</div>
                 <h3 className="font-bold mb-2">Browse</h3>
                 <p className="text-sm text-gray-700">
-                  Find available parking slots in {community.name}
+                  Find available parking slots in Lumiere Residences
                 </p>
               </div>
               <div>
@@ -131,7 +129,7 @@ export default function CommunityHome() {
         {/* Community Info */}
         <div className="mt-12 text-center text-sm text-gray-500">
           <p>
-            ParkBoard is a community-driven parking marketplace exclusively for {community.displayName} residents.
+            ParkBoard is a community-driven parking marketplace exclusively for Lumiere Residences residents.
           </p>
           <p className="mt-2">
             Need help? Contact your building management.

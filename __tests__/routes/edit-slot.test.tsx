@@ -7,16 +7,9 @@
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { useRouter, useParams } from 'next/navigation'
-import EditSlotPage from '@/app/[community]/slots/[slotId]/edit/page'
+import EditSlotPage from '@/app/LMR/slots/[slotId]/edit/page'
 
-// Mock CommunityContext (required for multi-tenant pages)
-jest.mock('@/lib/context/CommunityContext', () => ({
-  useCommunity: () => ({
-    code: 'LMR',
-    name: 'Lumiere',
-    displayName: 'Lumiere Residences',
-  }),
-}))
+// CommunityContext mock removed (no longer needed in minimal MVP)
 
 // Mock Navigation
 jest.mock('@/components/common/Navigation', () => {
@@ -66,7 +59,7 @@ const mockSlotData = {
   description: 'Near elevator, well-lit',
   price_per_hour: 50,
   status: 'active',
-  community_code: 'LMR',
+  // community_code removed (column no longer exists in minimal MVP)
   created_at: '2025-01-01T00:00:00.000Z',
   updated_at: '2025-01-01T00:00:00.000Z',
 }

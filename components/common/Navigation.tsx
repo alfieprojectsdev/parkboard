@@ -1,16 +1,14 @@
-// components/common/Navigation.tsx - Navigation bar (MULTI-TENANT)
+// components/common/Navigation.tsx - Navigation bar
 'use client'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useOptionalAuth } from '@/components/auth/AuthWrapper'
-import { useCommunity } from '@/lib/context/CommunityContext'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import type { UserProfile } from '@/types/database'
 
 export default function Navigation() {
-  const community = useCommunity()
   const auth = useOptionalAuth() // null on public pages without AuthWrapper
   const supabase = createClient()
 
@@ -89,25 +87,25 @@ export default function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center space-x-8">
-            <Link href={`/${community.code}`} className="text-xl font-bold text-blue-600">
+            <Link href="/LMR" className="text-xl font-bold text-blue-600">
               ParkBoard
             </Link>
 
             <div className="hidden md:flex items-center space-x-4">
               <Link
-                href={`/${community.code}/slots`}
+                href="/LMR/slots"
                 className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
               >
                 Browse Slots
               </Link>
               <Link
-                href={`/${community.code}/slots/new`}
+                href="/LMR/slots/new"
                 className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
               >
                 List My Slot
               </Link>
               <Link
-                href={`/${community.code}/bookings`}
+                href="/LMR/bookings"
                 className="text-gray-700 hover:text-blue-600 px-3 py-2 rounded-md text-sm font-medium"
               >
                 My Bookings
