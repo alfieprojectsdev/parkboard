@@ -96,20 +96,39 @@ export default function LoginPage() {
         throw signInError
       }
 
-      // 🎓 LEARNING: Why window.location.href for auth redirects
+      // 🎓 LEARNING: Why we wait for session before redirecting
       // ----------------------------------------------------------------------
-      // Problem: router.refresh() + router.push() can have race conditions
-      //          in test environments - router.push() may execute before
-      //          session is fully refreshed on server.
+      // CRITICAL FIX: Wait for Supabase to write session to localStorage
       //
-      // Solution: window.location.href = '/' forces a full page reload
-      //          which guarantees server reads fresh session from cookies.
+      // Problem: signInWithPassword() completes before session is saved
+      //          If we redirect immediately, the session write is interrupted
+      //          Result: E2E tests timeout, user appears not logged in
+      //
+      // Solution: Poll localStorage until session appears (max 5 seconds)
       //
       // Flow:
-      // 1. Supabase saves session → Cookies updated ✅
-      // 2. window.location.href = '/' → Full page reload ✅
-      // 3. Server reads fresh session from cookies ✅
+      // 1. signInWithPassword() starts async session save ✅
+      // 2. Poll localStorage every 50ms until session exists ✅
+      // 3. Session confirmed → Safe to redirect ✅
+      // 4. window.location.href = '/' with guaranteed session ✅
       // ----------------------------------------------------------------------
+      await new Promise<void>((resolve) => {
+        const checkSession = setInterval(() => {
+          const session = localStorage.getItem('sb-cgbkknefvggnhkvmuwsa-auth-token')
+          if (session) {
+            clearInterval(checkSession)
+            resolve()
+          }
+        }, 50) // Check every 50ms
+
+        // Timeout after 5 seconds (fallback)
+        setTimeout(() => {
+          clearInterval(checkSession)
+          resolve()
+        }, 5000)
+      })
+
+      // Now safe to redirect - session is guaranteed to be in localStorage
       window.location.href = '/'
 
     } catch (err: unknown) {

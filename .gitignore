@@ -35,3 +35,18 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Test outputs
+playwright-report/
+test-results/
+*.log
+
+# Worktrees
+.trees/
+
+# Claude Code
+claude_*.log
+.claude/
+
+# Deprecated files
+*.deprecated_*
