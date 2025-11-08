@@ -1,0 +1,929 @@
+# Multi-Instance Coordination Strategy for Parkboard
+
+**Date:** 2025-10-18
+**Purpose:** Enable parallel development with multiple Claude Code instances or developers using git worktrees
+**Status:** Production-Ready Framework
+
+---
+
+## Table of Contents
+
+1. [Overview](#overview)
+2. [Instance Assignment Strategy](#instance-assignment-strategy)
+3. [Communication Protocol](#communication-protocol)
+4. [Conflict Prevention](#conflict-prevention)
+5. [State Synchronization](#state-synchronization)
+6. [Scratchpad System](#scratchpad-system)
+7. [Automated Coordination](#automated-coordination)
+
+---
+
+## Overview
+
+### The Problem
+
+When multiple AI instances or developers work on parkboard simultaneously, coordination challenges arise:
+- **Resource conflicts**: Two instances trying to use the same worktree
+- **Port conflicts**: Multiple dev servers on the same port
+- **Database conflicts**: Migrations running concurrently
+- **Communication gaps**: No way to know what others are doing
+- **Work duplication**: Two instances implementing the same feature
+
+### The Solution
+
+Git worktrees + Scratchpad communication + Instance assignment = **Parallelized development without conflicts**
+
+### Key Principles
+
+1. **One worktree per instance** - No sharing, no conflicts
+2. **Explicit communication** - All instances read/write to scratchpads
+3. **Port isolation** - Each instance has assigned ports
+4. **State visibility** - Lock files show who's working on what
+5. **Automated checks** - Scripts prevent conflicts before they happen
+
+---
+
+## Instance Assignment Strategy
+
+### Standard Instance Allocation
+
+| Instance ID | Worktree | Branch | Port | Primary Role |
+|-------------|----------|--------|------|--------------|
+| `claude-main` | main | main | 3000 | Production testing, critical fixes |
+| `claude-feature` | feature-slot-edit | feature/slot-edit | 3001 | Feature development |
+| `claude-fix` | fix-sign-out-issues | fix/sign-out-issues | 3002 | Bug fixes |
+| `claude-dev` | dev | main | 3003 | Experimentation, testing |
+| `claude-test` | test | main | 3004 | E2E testing, QA |
+| `claude-docs` | docs | main | 3005 | Documentation updates |
+
+### Dynamic Instance Creation
+
+For new tasks not fitting the standard allocation:
+
+```bash
+# Create new worktree for instance
+./create-instance-worktree.sh <instance-id> <branch-name> <port>
+
+# Example:
+./create-instance-worktree.sh claude-ui feature/ui-redesign 3006
+```
+
+This creates:
+- Worktree at `parkboard-worktrees/<instance-id>/`
+- Lock file at `parkboard-worktrees/.locks/<instance-id>.lock`
+- Scratchpad at `parkboard-worktrees/.scratchpads/<instance-id>.md`
+
+---
+
+## Communication Protocol
+
+### Scratchpad Structure
+
+Each instance maintains a scratchpad in `parkboard-worktrees/.scratchpads/<instance-id>.md`
+
+**Scratchpad Template:**
+
+```markdown
+# Instance: <instance-id>
+# Worktree: <worktree-name>
+# Port: <port-number>
+# Started: <timestamp>
+# Last Updated: <timestamp>
+
+---
+
+## Current Status
+
+**State:** [IDLE | WORKING | BLOCKED | COMPLETED | ERROR]
+**Working On:** <brief description>
+**Estimated Completion:** <timestamp or "unknown">
+
+---
+
+## Current Task
+
+### Objective
+<What is this instance trying to accomplish?>
+
+### Progress
+- [x] Completed step 1
+- [ ] In progress: step 2
+- [ ] Pending: step 3
+
+### Blockers
+- None
+
+---
+
+## Messages to Other Instances
+
+### To: <target-instance-id> | ALL
+**Priority:** [LOW | MEDIUM | HIGH | URGENT]
+**Message:** <communication>
+
+---
+
+## Recent Commits
+
+- `abc123` - feat: implemented feature X
+- `def456` - fix: resolved issue Y
+
+---
+
+## Resources Locked
+
+- Database: [YES | NO]
+- Files: <list of files currently being edited>
+- Migrations pending: [YES | NO]
+
+---
+
+## Notes
+
+<Any additional context or observations>
+```
+
+### Communication Rules
+
+1. **Update frequency**: Every significant state change (minimum every 15 minutes of active work)
+2. **Read before write**: Always read all scratchpads before starting new work
+3. **Priority messages**: Check for HIGH/URGENT messages every 5 minutes
+4. **Acknowledgment**: Respond to direct messages within 10 minutes
+5. **Completion notification**: Update status to COMPLETED when done
+
+### Message Types
+
+```markdown
+### To: ALL
+**Priority:** HIGH
+**Message:** Starting database migration 004. Please do not run any DB operations for 5 minutes.
+
+### To: claude-feature
+**Priority:** MEDIUM
+**Message:** I've refactored AuthWrapper.tsx. You may need to update your imports.
+
+### To: ALL
+**Priority:** URGENT
+**Message:** Critical bug found in slot booking. All instances please PAUSE work on booking-related features.
+```
+
+---
+
+## Conflict Prevention
+
+### Pre-Work Checklist
+
+Before starting any work, each instance MUST:
+
+1. **Read all scratchpads**
+   ```bash
+   cat parkboard-worktrees/.scratchpads/*.md
+   ```
+
+2. **Check lock files**
+   ```bash
+   ls -la parkboard-worktrees/.locks/
+   ```
+
+3. **Verify port availability**
+   ```bash
+   ./check-port.sh <my-port>
+   ```
+
+4. **Check for blocking messages**
+   ```bash
+   grep -r "Priority: URGENT" parkboard-worktrees/.scratchpads/
+   ```
+
+5. **Announce your intent**
+   ```bash
+   ./announce-task.sh "<task-description>"
+   ```
+
+### Lock File System
+
+Lock files prevent concurrent work on the same resource.
+
+**Lock File Format:** `parkboard-worktrees/.locks/<resource>.lock`
+
+```json
+{
+  "resource": "database",
+  "locked_by": "claude-main",
+  "locked_at": "2025-10-18T10:30:00Z",
+  "reason": "Running migration 004",
+  "estimated_release": "2025-10-18T10:35:00Z"
+}
+```
+
+**Lock Types:**
+
+- `database.lock` - Database migrations or schema changes
+- `env.lock` - Environment variable changes
+- `package-json.lock` - Dependency updates
+- `<file-path>.lock` - Specific file being edited
+
+**Acquiring a lock:**
+
+```bash
+./acquire-lock.sh database "Running migration 004" "5 minutes"
+```
+
+**Releasing a lock:**
+
+```bash
+./release-lock.sh database
+```
+
+**Checking locks:**
+
+```bash
+./check-locks.sh
+```
+
+### File Conflict Prevention
+
+Each instance should work on different files when possible. Use the scratchpad "Files" section:
+
+```markdown
+## Resources Locked
+
+- Database: NO
+- Files:
+  - app/[community]/slots/page.tsx (editing)
+  - components/slots/SlotCard.tsx (editing)
+  - __tests__/routes/slots.test.tsx (editing)
+- Migrations pending: NO
+```
+
+Other instances can see this and avoid those files.
+
+---
+
+## State Synchronization
+
+### Pulling Updates
+
+Each instance should periodically pull updates from other instances:
+
+```bash
+# Run this every 30 minutes or before starting new work
+./sync-worktree.sh
+```
+
+This script:
+1. Fetches from origin
+2. Checks other worktrees for new commits
+3. Notifies if merge conflicts might occur
+4. Updates local branches
+
+### Sharing Work in Progress
+
+To share uncommitted work:
+
+```bash
+# Create a WIP branch
+git checkout -b wip/<instance-id>/<feature-name>
+git add .
+git commit -m "WIP: <description>"
+git push -u origin wip/<instance-id>/<feature-name>
+
+# Notify others in scratchpad
+```
+
+Other instances can then:
+
+```bash
+# Pull WIP work
+git fetch origin wip/<instance-id>/<feature-name>
+git checkout wip/<instance-id>/<feature-name>
+```
+
+### Coordinated Commits
+
+For features requiring multiple instances:
+
+1. **Designate a coordinator** (usually claude-main)
+2. **All instances push to feature branches**
+3. **Coordinator reviews and merges**
+
+Example workflow:
+
+```markdown
+## Coordinated Feature: UI Redesign
+
+**Coordinator:** claude-main
+**Participants:** claude-feature, claude-ui, claude-test
+
+**Branches:**
+- claude-feature: feature/ui-redesign-components
+- claude-ui: feature/ui-redesign-styles
+- claude-test: feature/ui-redesign-tests
+
+**Merge Order:**
+1. claude-feature → feature/ui-redesign
+2. claude-ui → feature/ui-redesign
+3. claude-test → feature/ui-redesign
+4. feature/ui-redesign → main (after all tests pass)
+```
+
+---
+
+## Scratchpad System
+
+### Directory Structure
+
+```
+parkboard-worktrees/
+├── .scratchpads/
+│   ├── claude-main.md
+│   ├── claude-feature.md
+│   ├── claude-fix.md
+│   ├── claude-dev.md
+│   ├── claude-test.md
+│   └── shared.md           # Cross-instance announcements
+├── .locks/
+│   ├── database.lock
+│   ├── package-json.lock
+│   └── *.lock
+└── .coordination/
+    ├── task-board.md        # Overall project status
+    ├── priority-queue.md    # Ordered list of tasks
+    └── decision-log.md      # Record of important decisions
+```
+
+### Shared Scratchpad
+
+The `shared.md` file is for cross-instance announcements:
+
+```markdown
+# Shared Coordination Scratchpad
+# Updated: 2025-10-18 10:45:00
+
+---
+
+## Active Alerts
+
+### URGENT: Database Migration Pending
+**Posted by:** claude-main
+**Time:** 2025-10-18 10:30:00
+**Message:** Migration 004 (hybrid pricing) ready to run. Needs approval before execution.
+**Action Required:** All instances review migration before 2025-10-18 12:00:00
+
+---
+
+## Task Assignments
+
+| Task | Assigned To | Status | Due |
+|------|-------------|--------|-----|
+| Implement hybrid pricing UI | claude-feature | IN_PROGRESS | 2025-10-18 |
+| Fix sign-out redirect bug | claude-fix | COMPLETED | 2025-10-18 |
+| Update E2E tests | claude-test | PENDING | 2025-10-19 |
+| Document API changes | claude-docs | IN_PROGRESS | 2025-10-19 |
+
+---
+
+## Recent Decisions
+
+**2025-10-18 09:00** - Decided to use Option A for hybrid pricing (NULL support)
+**2025-10-18 08:30** - Agreed on port allocation strategy (see table above)
+
+---
+
+## Upcoming Milestones
+
+- **2025-10-19**: Deploy to Vercel staging
+- **2025-10-20**: Production deployment
+```
+
+### Task Board
+
+The `task-board.md` provides a Kanban-style view:
+
+```markdown
+# Parkboard Task Board
+# Updated: 2025-10-18 10:45:00
+
+---
+
+## TODO
+
+- [ ] Implement advanced search filters (@unassigned)
+- [ ] Add admin dashboard (@unassigned)
+- [ ] Optimize slot listing query (@unassigned)
+
+---
+
+## IN PROGRESS
+
+- [ ] Hybrid pricing UI implementation (@claude-feature)
+  - Started: 2025-10-18 09:00
+  - ETA: 2025-10-18 15:00
+
+- [ ] Documentation updates (@claude-docs)
+  - Started: 2025-10-18 10:00
+  - ETA: 2025-10-18 14:00
+
+---
+
+## BLOCKED
+
+- [ ] Vercel deployment (@claude-main)
+  - Blocker: Waiting for Vercel account setup
+  - Owner: Human developer
+
+---
+
+## DONE
+
+- [x] Multi-tenant architecture (@claude-main) - Completed 2025-10-14
+- [x] Fix sign-out redirect bug (@claude-fix) - Completed 2025-10-18
+- [x] E2E diagnostic tests (@claude-test) - Completed 2025-10-14
+```
+
+### Priority Queue
+
+The `priority-queue.md` maintains ordered priorities:
+
+```markdown
+# Priority Queue
+# Updated: 2025-10-18 10:45:00
+
+---
+
+## P0 - Critical (Do First)
+
+1. ⚠️ **Fix production blocker**: Sign-out redirect (@claude-fix) - IN_PROGRESS
+2. 🔥 **Deploy to staging**: Vercel setup (@claude-main) - BLOCKED
+
+---
+
+## P1 - High Priority (Do Today)
+
+1. 🎨 **Hybrid pricing UI**: Implementation (@claude-feature) - IN_PROGRESS
+2. 📚 **API documentation**: Update docs (@claude-docs) - IN_PROGRESS
+3. 🧪 **E2E tests**: Add hybrid pricing tests (@claude-test) - TODO
+
+---
+
+## P2 - Medium Priority (Do This Week)
+
+1. 🔍 **Advanced search**: Implement filters (@unassigned)
+2. 📊 **Admin dashboard**: Initial version (@unassigned)
+3. ⚡ **Performance**: Optimize queries (@unassigned)
+
+---
+
+## P3 - Low Priority (Nice to Have)
+
+1. 🎨 **UI polish**: Animations and transitions (@unassigned)
+2. 📱 **Mobile optimization**: Touch gestures (@unassigned)
+```
+
+---
+
+## Automated Coordination
+
+### Status Monitor Script
+
+Create `parkboard-worktrees/monitor.sh`:
+
+```bash
+#!/bin/bash
+# Continuous monitoring of all instances
+
+watch -n 10 '
+echo "=== PARKBOARD INSTANCE STATUS ==="
+echo ""
+for scratchpad in parkboard-worktrees/.scratchpads/*.md; do
+  instance=$(basename "$scratchpad" .md)
+  status=$(grep "State:" "$scratchpad" | cut -d" " -f2)
+  task=$(grep "Working On:" "$scratchpad" | cut -d":" -f2-)
+  echo "[$status] $instance: $task"
+done
+echo ""
+echo "=== ACTIVE LOCKS ==="
+ls -1 parkboard-worktrees/.locks/*.lock 2>/dev/null | xargs -I{} basename {} .lock
+echo ""
+echo "=== PORT STATUS ==="
+for port in 3000 3001 3002 3003 3004 3005; do
+  if lsof -ti:$port >/dev/null 2>&1; then
+    echo "Port $port: BUSY"
+  else
+    echo "Port $port: FREE"
+  fi
+done
+'
+```
+
+### Conflict Checker Script
+
+Create `parkboard-worktrees/check-conflicts.sh`:
+
+```bash
+#!/bin/bash
+# Check for potential conflicts before starting work
+
+echo "Checking for conflicts..."
+
+# Check if any instance is running migrations
+if grep -r "Database: YES" parkboard-worktrees/.scratchpads/*.md; then
+  echo "⚠️  WARNING: Another instance is using the database"
+  exit 1
+fi
+
+# Check for urgent messages
+if grep -r "Priority: URGENT" parkboard-worktrees/.scratchpads/*.md; then
+  echo "🚨 URGENT MESSAGE FOUND:"
+  grep -r "Priority: URGENT" -A 2 parkboard-worktrees/.scratchpads/*.md
+  exit 1
+fi
+
+# Check for lock files
+if ls parkboard-worktrees/.locks/*.lock 2>/dev/null; then
+  echo "🔒 Active locks found:"
+  for lock in parkboard-worktrees/.locks/*.lock; do
+    cat "$lock"
+  done
+  exit 1
+fi
+
+echo "✅ No conflicts detected. Safe to proceed."
+exit 0
+```
+
+### Auto-Update Script
+
+Create `parkboard-worktrees/auto-sync.sh`:
+
+```bash
+#!/bin/bash
+# Automatically sync all worktrees every 30 minutes
+
+while true; do
+  echo "[$(date)] Syncing worktrees..."
+
+  for worktree in parkboard-worktrees/*/; do
+    if [ -d "$worktree/.git" ]; then
+      cd "$worktree"
+      echo "Syncing $(basename $worktree)..."
+      git fetch --all --quiet
+      # Don't auto-pull, just fetch
+    fi
+  done
+
+  echo "[$(date)] Sync complete. Next sync in 30 minutes."
+  sleep 1800  # 30 minutes
+done
+```
+
+---
+
+## Instance Initialization Checklist
+
+When a new Claude instance starts work:
+
+### Phase 1: Environment Setup (2 minutes)
+
+- [ ] Identify your instance ID (e.g., `claude-feature`)
+- [ ] Navigate to your assigned worktree
+  ```bash
+  cd /home/ltpt420/repos/parkboard-worktrees/<your-worktree>
+  ```
+- [ ] Verify dependencies are installed
+  ```bash
+  npm list 2>&1 | head -5
+  ```
+- [ ] Check your assigned port is free
+  ```bash
+  lsof -ti:<your-port> || echo "Port is free"
+  ```
+
+### Phase 2: Coordination Setup (3 minutes)
+
+- [ ] Read ALL instance scratchpads
+  ```bash
+  cat /home/ltpt420/repos/parkboard-worktrees/.scratchpads/*.md
+  ```
+- [ ] Read shared scratchpad for alerts
+  ```bash
+  cat /home/ltpt420/repos/parkboard-worktrees/.scratchpads/shared.md
+  ```
+- [ ] Check for active locks
+  ```bash
+  ls -la /home/ltpt420/repos/parkboard-worktrees/.locks/
+  ```
+- [ ] Review task board
+  ```bash
+  cat /home/ltpt420/repos/parkboard-worktrees/.coordination/task-board.md
+  ```
+
+### Phase 3: Status Announcement (2 minutes)
+
+- [ ] Update your scratchpad with current status
+- [ ] Set state to WORKING
+- [ ] List files you'll be editing
+- [ ] Announce task in shared scratchpad
+- [ ] Acquire locks if needed
+
+### Phase 4: Start Work (ongoing)
+
+- [ ] Start dev server on assigned port
+- [ ] Update scratchpad every 15 minutes
+- [ ] Check for urgent messages every 5 minutes
+- [ ] Commit frequently with descriptive messages
+- [ ] Update task board as you progress
+
+### Phase 5: Completion (5 minutes)
+
+- [ ] Run tests
+  ```bash
+  npm test
+  ```
+- [ ] Update scratchpad to COMPLETED
+- [ ] Release all locks
+- [ ] Commit and push changes
+- [ ] Update task board
+- [ ] Move completed task to DONE
+
+---
+
+## Advanced Coordination Patterns
+
+### Pattern 1: Handoff Between Instances
+
+When one instance needs another to continue:
+
+**Instance A (claude-feature):**
+```markdown
+## Messages to Other Instances
+
+### To: claude-test
+**Priority:** HIGH
+**Message:** Feature complete on feature/hybrid-pricing-ui. Ready for E2E testing.
+Branch pushed to origin. Tests needed for:
+- Create slot with NULL price
+- Display "Contact Owner" UI
+- Prevent booking when price is NULL
+
+Handoff at: 2025-10-18 14:30:00
+```
+
+**Instance B (claude-test):**
+```markdown
+## Current Status
+
+**State:** WORKING
+**Working On:** E2E tests for hybrid pricing (handoff from claude-feature)
+
+## Messages to Other Instances
+
+### To: claude-feature
+**Priority:** MEDIUM
+**Message:** Tests received. Starting E2E implementation. ETA: 1 hour.
+```
+
+### Pattern 2: Coordinated Deployment
+
+Multiple instances preparing for deployment:
+
+**Coordinator (claude-main):**
+```markdown
+## Deployment Coordination: 2025-10-18 16:00
+
+**Participants:**
+- claude-feature: Merge feature branches
+- claude-test: Run full E2E suite
+- claude-docs: Update deployment docs
+- claude-main: Execute deployment
+
+**Timeline:**
+- 15:00 - All instances freeze new work
+- 15:15 - claude-test runs full suite
+- 15:30 - claude-feature merges to main
+- 15:45 - claude-main runs final checks
+- 16:00 - DEPLOY
+
+**Rollback Plan:**
+- If E2E fails: Revert commits, delay 1 day
+- If deployment fails: Rollback via Vercel dashboard
+```
+
+### Pattern 3: Emergency Stop
+
+When critical bug discovered:
+
+```markdown
+# SHARED SCRATCHPAD - URGENT ALERT
+
+## 🚨 EMERGENCY STOP 🚨
+
+**Posted by:** claude-main
+**Time:** 2025-10-18 11:45:00
+**Severity:** CRITICAL
+
+**Issue:** Production bug in slot booking - double charging users
+
+**Action Required:**
+- ❌ ALL instances STOP work on booking-related features
+- ❌ DO NOT deploy anything to production
+- ❌ DO NOT run database migrations
+- ✅ claude-fix: Investigate and fix ASAP
+- ✅ All others: Review code for similar issues
+
+**Status:** INVESTIGATING
+**ETA for fix:** Unknown
+
+---
+
+**Update 12:30:** Fix identified. Testing in progress.
+**Update 13:00:** Fix deployed. All clear. Resume normal work.
+```
+
+---
+
+## Best Practices
+
+### Do's
+
+✅ **Always read scratchpads before starting work**
+✅ **Update your status frequently**
+✅ **Commit small, focused changes**
+✅ **Use descriptive commit messages**
+✅ **Announce breaking changes immediately**
+✅ **Respond to direct messages promptly**
+✅ **Clean up locks when done**
+✅ **Test before marking tasks complete**
+
+### Don'ts
+
+❌ **Never share worktrees between instances**
+❌ **Never ignore URGENT messages**
+❌ **Never run migrations without announcement**
+❌ **Never push directly to main (use PRs)**
+❌ **Never leave stale locks**
+❌ **Never work on same files simultaneously**
+❌ **Never assume others know your changes**
+
+---
+
+## Troubleshooting Multi-Instance Issues
+
+### Issue: Two instances editing same file
+
+**Detection:**
+```bash
+# Check if file is locked
+ls parkboard-worktrees/.locks/components-slots-SlotCard.tsx.lock
+```
+
+**Solution:**
+```markdown
+### To: <other-instance>
+**Priority:** HIGH
+**Message:** I need to edit components/slots/SlotCard.tsx.
+Can you complete your changes or can I take over?
+```
+
+### Issue: Port conflict
+
+**Detection:**
+```bash
+lsof -ti:3001
+# Shows PID if port is busy
+```
+
+**Solution:**
+```bash
+# Find which instance is using it
+ps aux | grep <PID>
+
+# Contact that instance via scratchpad
+# Or use your alternate port
+npm run dev -- -p 3011
+```
+
+### Issue: Database migration conflict
+
+**Prevention:**
+```bash
+# Always acquire lock before migrations
+./acquire-lock.sh database "Running migration 005" "10 minutes"
+
+# Announce in shared scratchpad
+echo "### ALERT: Running migration 005" >> shared.md
+```
+
+---
+
+## Metrics and Monitoring
+
+### Track Coordination Effectiveness
+
+Create `parkboard-worktrees/metrics.sh`:
+
+```bash
+#!/bin/bash
+# Generate coordination metrics
+
+echo "=== COORDINATION METRICS ==="
+echo ""
+
+# Active instances
+echo "Active Instances: $(grep -l 'State: WORKING' parkboard-worktrees/.scratchpads/*.md | wc -l)"
+
+# Tasks completed today
+echo "Tasks Completed Today: $(grep -c "$(date +%Y-%m-%d)" parkboard-worktrees/.coordination/task-board.md || echo 0)"
+
+# Average response time to messages
+echo "Open Messages: $(grep -c 'To:.*Priority:' parkboard-worktrees/.scratchpads/*.md)"
+
+# Lock conflicts (same lock requested multiple times)
+echo "Lock Conflicts: $(ls parkboard-worktrees/.locks/*.lock 2>/dev/null | wc -l)"
+
+# Commits per instance
+echo ""
+echo "Commits per instance:"
+for worktree in parkboard-worktrees/*/; do
+  cd "$worktree"
+  instance=$(basename "$worktree")
+  commits=$(git log --since="today" --oneline | wc -l)
+  echo "  $instance: $commits commits"
+done
+```
+
+---
+
+## Summary
+
+Multi-instance coordination transforms parallel development from chaotic to systematic:
+
+**Without Coordination:**
+- Constant merge conflicts
+- Duplicate work
+- Resource contention
+- Communication chaos
+
+**With Coordination:**
+- Clear ownership
+- No conflicts
+- Efficient parallelization
+- Transparent communication
+
+**Key Success Factors:**
+1. Strict adherence to scratchpad protocol
+2. Proactive lock management
+3. Frequent status updates
+4. Responsive communication
+5. Automated conflict detection
+
+---
+
+## Quick Reference Card
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ BEFORE STARTING WORK                                    │
+├─────────────────────────────────────────────────────────┤
+│ 1. Read all scratchpads                                 │
+│ 2. Check locks                                          │
+│ 3. Check port availability                              │
+│ 4. Run ./check-conflicts.sh                             │
+│ 5. Update your scratchpad                               │
+│ 6. Acquire necessary locks                              │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ WHILE WORKING                                           │
+├─────────────────────────────────────────────────────────┤
+│ - Update scratchpad every 15 min                        │
+│ - Check messages every 5 min                            │
+│ - Commit frequently                                     │
+│ - List files you're editing                             │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ WHEN FINISHED                                           │
+├─────────────────────────────────────────────────────────┤
+│ 1. Run tests                                            │
+│ 2. Release locks                                        │
+│ 3. Update scratchpad to COMPLETED                       │
+│ 4. Update task board                                    │
+│ 5. Commit and push                                      │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│ EMERGENCY PROCEDURES                                    │
+├─────────────────────────────────────────────────────────┤
+│ Found critical bug:                                     │
+│   → Post URGENT to shared.md                            │
+│   → Notify all instances                                │
+│   → Acquire database lock if needed                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+**Document Version:** 1.0
+**Last Updated:** 2025-10-18
+**Maintained By:** Development Team

@@ -1,0 +1,694 @@
+#!/bin/bash
+#
+# Parkboard Git Worktree Quick Start
+# ===================================
+#
+# One-command setup for git worktrees with full coordination infrastructure
+#
+# Usage:
+#   ./quickstart-worktrees.sh
+#
+# This script will:
+#   1. Set up bare repository
+#   2. Create all standard worktrees
+#   3. Install dependencies in each
+#   4. Set up coordination infrastructure (scratchpads, locks, task boards)
+#   5. Create helper scripts
+#   6. Generate documentation
+#
+# Estimated time: 10-15 minutes
+#
+
+set -e
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
+NC='\033[0m'
+
+# Configuration
+REPOS_DIR="/home/ltpt420/repos"
+PARKBOARD_DIR="$REPOS_DIR/parkboard"
+BARE_REPO_DIR="$REPOS_DIR/parkboard"
+WORKTREES_DIR="$REPOS_DIR/parkboard/.trees"
+
+# Helper functions
+log_header() {
+  echo ""
+  echo -e "${CYAN}╔═══════════════════════════════════════════════════════════╗${NC}"
+  echo -e "${CYAN}║  $1${NC}"
+  echo -e "${CYAN}╚═══════════════════════════════════════════════════════════╝${NC}"
+  echo ""
+}
+
+log_step() {
+  echo ""
+  echo -e "${BLUE}▶${NC} $1"
+}
+
+log_success() {
+  echo -e "  ${GREEN}✓${NC} $1"
+}
+
+log_info() {
+  echo -e "  ${BLUE}ℹ${NC} $1"
+}
+
+log_warning() {
+  echo -e "  ${YELLOW}⚠${NC} $1"
+}
+
+log_error() {
+  echo -e "  ${RED}✗${NC} $1"
+}
+
+# ASCII Art Banner
+show_banner() {
+  echo -e "${CYAN}"
+  cat << "EOF"
+╔═══════════════════════════════════════════════════════════╗
+║                                                           ║
+║   ██████╗  █████╗ ██████╗ ██╗  ██╗██████╗  ██████╗      ║
+║   ██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██╔══██╗██╔═══██╗     ║
+║   ██████╔╝███████║██████╔╝█████╔╝ ██████╔╝██║   ██║     ║
+║   ██╔═══╝ ██╔══██║██╔══██╗██╔═██╗ ██╔══██╗██║   ██║     ║
+║   ██║     ██║  ██║██║  ██║██║  ██╗██████╔╝╚██████╔╝     ║
+║   ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═════╝  ╚═════╝      ║
+║                                                           ║
+║        Git Worktree Quick Start & Coordination           ║
+║                                                           ║
+╚═══════════════════════════════════════════════════════════╝
+EOF
+  echo -e "${NC}"
+}
+
+# Main setup function
+main() {
+  show_banner
+
+  log_info "This script will set up a complete git worktree environment with:"
+  echo ""
+  echo "  • Bare repository structure"
+  echo "  • 6 pre-configured worktrees (main, feature, fix, dev, test, docs)"
+  echo "  • Multi-instance coordination infrastructure"
+  echo "  • Automated scripts for management"
+  echo "  • Complete documentation"
+  echo ""
+  log_warning "Estimated time: 10-15 minutes"
+  log_warning "This will create ~2GB of files (6x node_modules)"
+  echo ""
+
+  read -p "Continue? (Y/n) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Nn]$ ]]; then
+    log_error "Aborted by user"
+    exit 1
+  fi
+
+  # Run the main setup script
+  log_step "Running main setup script..."
+
+  if [ ! -f "$PARKBOARD_DIR/docs/scripts/setup-worktrees.sh" ]; then
+    log_error "Setup script not found. Please ensure you're in the parkboard directory."
+    exit 1
+  fi
+
+  # Make scripts executable
+  chmod +x "$PARKBOARD_DIR/docs/scripts/setup-worktrees.sh"
+
+  # Run setup
+  "$PARKBOARD_DIR/docs/scripts/setup-worktrees.sh" --bare
+
+  # Now set up coordination infrastructure
+  log_header "Setting up coordination infrastructure"
+
+  # Create directories
+  log_step "Creating coordination directories..."
+  mkdir -p "$WORKTREES_DIR/.scratchpads"
+  mkdir -p "$WORKTREES_DIR/.locks"
+  mkdir -p "$WORKTREES_DIR/.coordination"
+  log_success "Directories created"
+
+  # Create scratchpads
+  log_step "Creating instance scratchpads..."
+
+  declare -A instances=(
+    ["claude-main"]="main:3000"
+    ["claude-feature"]="feature-slot-edit:3001"
+    ["claude-fix"]="fix-sign-out-issues:3002"
+    ["claude-dev"]="dev:3003"
+    ["claude-test"]="test:3004"
+    ["claude-docs"]="docs:3005"
+  )
+
+  for instance in "${!instances[@]}"; do
+    IFS=':' read -r worktree port <<< "${instances[$instance]}"
+
+    cat > "$WORKTREES_DIR/.scratchpads/$instance.md" << EOF
+# Instance Scratchpad: $instance
+
+**Worktree:** $worktree
+**Port:** $port
+**Started:** $(date +"%Y-%m-%d %H:%M:%S")
+**Last Updated:** $(date +"%Y-%m-%d %H:%M:%S")
+
+---
+
+## Current Status
+
+**State:** IDLE
+**Working On:** Nothing currently
+**Estimated Completion:** N/A
+**Progress:** 0%
+
+---
+
+## Current Task
+
+### Objective
+None
+
+### Progress Checklist
+- [ ] Task not yet started
+
+### Blockers
+None
+
+---
+
+## Messages to Other Instances
+
+No messages
+
+---
+
+## Resources Currently Locked
+
+**Database:** NO
+**Migrations Pending:** NO
+**Files Being Edited:** None
+
+---
+
+## Work Log
+
+**$(date +"%Y-%m-%d %H:%M:%S")** - Instance initialized by quickstart script
+
+---
+
+## Quick Status
+
+\`\`\`json
+{
+  "instance_id": "$instance",
+  "state": "IDLE",
+  "task": "None",
+  "progress": 0,
+  "port": $port,
+  "last_updated": "$(date +"%Y-%m-%d %H:%M:%S")",
+  "health": "OK"
+}
+\`\`\`
+EOF
+    log_success "Created scratchpad for $instance"
+  done
+
+  # Create shared scratchpad
+  log_step "Creating shared scratchpad..."
+  cp "$PARKBOARD_DIR/docs/templates/SHARED_SCRATCHPAD_TEMPLATE.md" \
+     "$WORKTREES_DIR/.scratchpads/shared.md"
+
+  # Update with current date
+  sed -i "s/\[YYYY-MM-DD HH:MM:SS\]/$(date +"%Y-%m-%d %H:%M:%S")/g" \
+    "$WORKTREES_DIR/.scratchpads/shared.md"
+
+  log_success "Shared scratchpad created"
+
+  # Create task board
+  log_step "Creating task board..."
+  cat > "$WORKTREES_DIR/.coordination/task-board.md" << EOF
+# Parkboard Task Board
+
+**Last Updated:** $(date +"%Y-%m-%d %H:%M:%S")
+
+---
+
+## TODO
+
+- [ ] Review worktree setup (@all)
+- [ ] Test multi-instance coordination (@all)
+
+---
+
+## IN PROGRESS
+
+- [ ] Initial worktree setup (@quickstart-script)
+  - Started: $(date +"%Y-%m-%d %H:%M:%S")
+  - Status: Nearly complete
+
+---
+
+## BLOCKED
+
+None
+
+---
+
+## DONE
+
+- [x] Multi-tenant architecture - Completed 2025-10-14
+- [x] E2E diagnostic tests - Completed 2025-10-14
+- [x] Worktree automation scripts - Completed $(date +"%Y-%m-%d")
+
+---
+
+**Legend:**
+- TODO: Not started
+- IN PROGRESS: Currently being worked on
+- BLOCKED: Cannot proceed due to dependency
+- DONE: Completed
+EOF
+  log_success "Task board created"
+
+  # Create priority queue
+  log_step "Creating priority queue..."
+  cat > "$WORKTREES_DIR/.coordination/priority-queue.md" << EOF
+# Priority Queue
+
+**Last Updated:** $(date +"%Y-%m-%d %H:%M:%S")
+
+---
+
+## P0 - Critical (Do First)
+
+1. 🚀 **Test worktree setup** - Verify all worktrees work correctly (@all)
+2. 🔥 **Deploy to production** - Vercel deployment (@claude-main)
+
+---
+
+## P1 - High Priority (Do Today)
+
+1. 🎨 **Hybrid pricing UI** - Complete implementation (@claude-feature)
+2. 🧪 **E2E tests** - Add hybrid pricing tests (@claude-test)
+3. 📚 **Documentation** - Update all docs (@claude-docs)
+
+---
+
+## P2 - Medium Priority (Do This Week)
+
+1. 🔍 **Advanced search** - Implement filters (@unassigned)
+2. 📊 **Admin dashboard** - Initial version (@unassigned)
+
+---
+
+## P3 - Low Priority (Nice to Have)
+
+1. 🎨 **UI polish** - Animations and transitions (@unassigned)
+2. 📱 **Mobile optimization** - Touch gestures (@unassigned)
+EOF
+  log_success "Priority queue created"
+
+  # Create decision log
+  log_step "Creating decision log..."
+  cat > "$WORKTREES_DIR/.coordination/decision-log.md" << EOF
+# Decision Log
+
+**Purpose:** Record all significant technical and process decisions
+
+---
+
+## $(date +"%Y-%m-%d") - Adopted Git Worktree Architecture
+
+**Decision:** Implement git worktrees with bare repository approach
+
+**Rationale:**
+- Eliminates context switching overhead
+- Enables parallel development with multiple instances
+- Each worktree maintains independent build state
+- Better isolation than branch switching
+
+**Impact:**
+- All developers/instances use new worktree structure
+- Original parkboard directory preserved as backup
+- New coordination protocols required
+
+**Decided by:** Automation + developer preference
+
+**Status:** IMPLEMENTED
+
+---
+
+## $(date +"%Y-%m-%d") - Multi-Instance Coordination Framework
+
+**Decision:** Implement scratchpad-based communication system
+
+**Rationale:**
+- Need coordination mechanism for parallel Claude instances
+- File-based communication is simple and reliable
+- Git-native solution (no external dependencies)
+
+**Impact:**
+- All instances must follow scratchpad protocol
+- New workflow for instance-to-instance communication
+
+**Decided by:** Architecture review
+
+**Status:** IMPLEMENTED
+EOF
+  log_success "Decision log created"
+
+  # Create helper scripts
+  log_step "Creating helper scripts..."
+
+  # Instance launcher script
+  cat > "$WORKTREES_DIR/start-instance.sh" << 'SCRIPT'
+#!/bin/bash
+# Quick instance launcher
+
+if [ -z "$1" ]; then
+  echo "Usage: ./start-instance.sh <instance-id>"
+  echo ""
+  echo "Available instances:"
+  ls -1 .scratchpads/*.md | xargs -I{} basename {} .md | grep -v shared
+  exit 1
+fi
+
+INSTANCE_ID=$1
+SCRATCHPAD=".scratchpads/$INSTANCE_ID.md"
+
+if [ ! -f "$SCRATCHPAD" ]; then
+  echo "Error: Instance $INSTANCE_ID not found"
+  exit 1
+fi
+
+# Get worktree and port from scratchpad
+WORKTREE=$(grep "Worktree:" "$SCRATCHPAD" | cut -d' ' -f2)
+PORT=$(grep "Port:" "$SCRATCHPAD" | cut -d' ' -f2)
+
+echo "Starting instance: $INSTANCE_ID"
+echo "Worktree: $WORKTREE"
+echo "Port: $PORT"
+echo ""
+
+# Navigate to worktree
+cd "$WORKTREE" || exit 1
+
+# Update scratchpad status
+TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
+sed -i "s/State: IDLE/State: WORKING/" "../.scratchpads/$INSTANCE_ID.md"
+sed -i "s/Last Updated: .*/Last Updated: $TIMESTAMP/" "../.scratchpads/$INSTANCE_ID.md"
+
+# Start dev server
+echo "Starting dev server on port $PORT..."
+npm run dev -- -p "$PORT"
+SCRIPT
+
+  chmod +x "$WORKTREES_DIR/start-instance.sh"
+  log_success "Created start-instance.sh"
+
+  # Lock management script
+  cat > "$WORKTREES_DIR/acquire-lock.sh" << 'SCRIPT'
+#!/bin/bash
+# Acquire a resource lock
+
+if [ -z "$1" ]; then
+  echo "Usage: ./acquire-lock.sh <resource> <instance-id> <reason> [duration]"
+  echo ""
+  echo "Example: ./acquire-lock.sh database claude-main 'Running migration' '10 minutes'"
+  exit 1
+fi
+
+RESOURCE=$1
+INSTANCE=$2
+REASON=$3
+DURATION=${4:-"unknown"}
+
+LOCK_FILE=".locks/$RESOURCE.lock"
+
+# Check if already locked
+if [ -f "$LOCK_FILE" ]; then
+  echo "Error: Resource $RESOURCE is already locked"
+  cat "$LOCK_FILE"
+  exit 1
+fi
+
+# Create lock
+cat > "$LOCK_FILE" << EOF
+{
+  "resource": "$RESOURCE",
+  "locked_by": "$INSTANCE",
+  "locked_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "reason": "$REASON",
+  "estimated_release": "$DURATION"
+}
+EOF
+
+echo "✓ Lock acquired on $RESOURCE by $INSTANCE"
+echo "Reason: $REASON"
+echo "Duration: $DURATION"
+SCRIPT
+
+  chmod +x "$WORKTREES_DIR/acquire-lock.sh"
+  log_success "Created acquire-lock.sh"
+
+  # Release lock script
+  cat > "$WORKTREES_DIR/release-lock.sh" << 'SCRIPT'
+#!/bin/bash
+# Release a resource lock
+
+if [ -z "$1" ]; then
+  echo "Usage: ./release-lock.sh <resource>"
+  exit 1
+fi
+
+RESOURCE=$1
+LOCK_FILE=".locks/$RESOURCE.lock"
+
+if [ ! -f "$LOCK_FILE" ]; then
+  echo "Warning: No lock found for $RESOURCE"
+  exit 0
+fi
+
+rm "$LOCK_FILE"
+echo "✓ Lock released on $RESOURCE"
+SCRIPT
+
+  chmod +x "$WORKTREES_DIR/release-lock.sh"
+  log_success "Created release-lock.sh"
+
+  # Check conflicts script
+  cat > "$WORKTREES_DIR/check-conflicts.sh" << 'SCRIPT'
+#!/bin/bash
+# Check for coordination conflicts
+
+echo "Checking for conflicts..."
+echo ""
+
+CONFLICTS=0
+
+# Check for URGENT messages
+if grep -r "Priority: URGENT" .scratchpads/*.md 2>/dev/null; then
+  echo "🚨 URGENT messages found:"
+  grep -r "Priority: URGENT" -A 3 .scratchpads/*.md
+  CONFLICTS=1
+  echo ""
+fi
+
+# Check for database locks
+if [ -f ".locks/database.lock" ]; then
+  echo "⚠️  Database is locked:"
+  cat .locks/database.lock
+  CONFLICTS=1
+  echo ""
+fi
+
+# Check for blocked instances
+BLOCKED=$(grep -l "State: BLOCKED" .scratchpads/*.md 2>/dev/null | wc -l)
+if [ "$BLOCKED" -gt 0 ]; then
+  echo "⚠️  $BLOCKED instance(s) are blocked"
+  CONFLICTS=1
+  echo ""
+fi
+
+if [ $CONFLICTS -eq 0 ]; then
+  echo "✓ No conflicts detected"
+  exit 0
+else
+  echo "⚠️  Conflicts detected - review before proceeding"
+  exit 1
+fi
+SCRIPT
+
+  chmod +x "$WORKTREES_DIR/check-conflicts.sh"
+  log_success "Created check-conflicts.sh"
+
+  # Status overview script
+  cat > "$WORKTREES_DIR/status.sh" << 'SCRIPT'
+#!/bin/bash
+# Show status of all instances and worktrees
+
+echo "╔═══════════════════════════════════════════════════════════╗"
+echo "║            Parkboard Worktrees Status                     ║"
+echo "╚═══════════════════════════════════════════════════════════╝"
+echo ""
+
+echo "=== INSTANCE STATUS ==="
+echo ""
+
+for scratchpad in .scratchpads/*.md; do
+  if [[ $(basename "$scratchpad") == "shared.md" ]]; then
+    continue
+  fi
+
+  instance=$(basename "$scratchpad" .md)
+  state=$(grep "State:" "$scratchpad" | awk '{print $2}')
+  task=$(grep "Working On:" "$scratchpad" | cut -d':' -f2- | xargs)
+  port=$(grep "Port:" "$scratchpad" | awk '{print $2}')
+
+  # Check if dev server is running
+  if lsof -ti:$port >/dev/null 2>&1; then
+    running="🟢"
+  else
+    running="⚪"
+  fi
+
+  case $state in
+    "WORKING") state_icon="🔄" ;;
+    "IDLE") state_icon="⏸️" ;;
+    "BLOCKED") state_icon="🚫" ;;
+    "COMPLETED") state_icon="✅" ;;
+    "ERROR") state_icon="❌" ;;
+    *) state_icon="❓" ;;
+  esac
+
+  printf "%-20s %s %s %s\n" "$instance" "$state_icon" "$running" "Port $port"
+  printf "  └─ %s\n" "$task"
+  echo ""
+done
+
+echo "=== ACTIVE LOCKS ==="
+echo ""
+if ls .locks/*.lock 2>/dev/null | grep -q .; then
+  for lock in .locks/*.lock; do
+    resource=$(basename "$lock" .lock)
+    locked_by=$(grep "locked_by" "$lock" | cut -d'"' -f4)
+    echo "🔒 $resource (locked by $locked_by)"
+  done
+else
+  echo "No active locks"
+fi
+echo ""
+
+echo "=== PORT USAGE ==="
+echo ""
+for port in 3000 3001 3002 3003 3004 3005; do
+  if lsof -ti:$port >/dev/null 2>&1; then
+    echo "Port $port: 🟢 BUSY"
+  else
+    echo "Port $port: ⚪ FREE"
+  fi
+done
+echo ""
+
+echo "=== RECENT ACTIVITY ==="
+echo ""
+git log --all --oneline --graph --decorate -10
+echo ""
+SCRIPT
+
+  chmod +x "$WORKTREES_DIR/status.sh"
+  log_success "Created status.sh"
+
+  # Create README
+  log_step "Creating worktrees README..."
+  cat > "$WORKTREES_DIR/README.md" << EOF
+# Parkboard Worktrees
+
+This directory contains all git worktrees for the Parkboard project, set up for parallel development.
+
+## Quick Start
+
+### Check Status
+\`\`\`bash
+./status.sh
+\`\`\`
+
+### Start an Instance
+\`\`\`bash
+./start-instance.sh claude-main
+\`\`\`
+
+### Check for Conflicts
+\`\`\`bash
+./check-conflicts.sh
+\`\`\`
+
+## Directory Structure
+
+- **\`.scratchpads/\`** - Instance communication files
+- **\`.locks/\`** - Resource locks
+- **\`.coordination/\`** - Task boards and coordination docs
+- **\`main/\`** - Main branch worktree (port 3000)
+- **\`feature-slot-edit/\`** - Feature branch (port 3001)
+- **\`fix-sign-out-issues/\`** - Fix branch (port 3002)
+- **\`dev/\`** - Development/testing (port 3003)
+- **\`test/\`** - E2E testing (port 3004)
+- **\`docs/\`** - Documentation (port 3005)
+
+## Available Scripts
+
+- **\`status.sh\`** - Show status of all instances
+- **\`start-instance.sh <id>\`** - Start a specific instance
+- **\`acquire-lock.sh <resource> <instance> <reason>\`** - Lock a resource
+- **\`release-lock.sh <resource>\`** - Release a lock
+- **\`check-conflicts.sh\`** - Check for coordination conflicts
+- **\`worktree-status.sh\`** - Git worktree list
+- **\`cleanup-worktree.sh <name>\`** - Remove a worktree
+
+## Documentation
+
+- [Git Worktree Guide](../parkboard/docs/GIT_WORKTREE_IMPLEMENTATION_GUIDE.md)
+- [Multi-Instance Coordination](../parkboard/docs/MULTI_INSTANCE_COORDINATION.md)
+- [Setup Summary](./SETUP_SUMMARY.md)
+
+## Created
+
+$(date +"%Y-%m-%d %H:%M:%S")
+EOF
+  log_success "README created"
+
+  # Final summary
+  log_header "Setup Complete!"
+
+  echo -e "${GREEN}✓ Worktrees created${NC}"
+  echo -e "${GREEN}✓ Coordination infrastructure deployed${NC}"
+  echo -e "${GREEN}✓ Helper scripts generated${NC}"
+  echo -e "${GREEN}✓ Documentation created${NC}"
+  echo ""
+
+  echo -e "${CYAN}Location:${NC} $WORKTREES_DIR"
+  echo ""
+  echo -e "${YELLOW}Next Steps:${NC}"
+  echo ""
+  echo -e "  1. Navigate to worktrees:"
+  echo -e "     ${GREEN}cd $WORKTREES_DIR${NC}"
+  echo ""
+  echo -e "  2. Check status:"
+  echo -e "     ${GREEN}./status.sh${NC}"
+  echo ""
+  echo -e "  3. Start an instance:"
+  echo -e "     ${GREEN}./start-instance.sh claude-main${NC}"
+  echo ""
+  echo -e "  4. Read the documentation:"
+  echo -e "     ${GREEN}cat README.md${NC}"
+  echo ""
+  echo -e "${CYAN}Happy coding! 🚀${NC}"
+  echo ""
+}
+
+# Run main
+main
