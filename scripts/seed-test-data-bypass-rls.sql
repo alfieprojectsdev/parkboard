@@ -5,14 +5,24 @@
 -- Database: parkboard_db (local PostgreSQL)
 -- Run with: PGPASSWORD=mannersmakethman psql -U ltpt420 -h localhost -d parkboard_db -f scripts/seed-test-data-bypass-rls.sql
 --
--- This version disables RLS temporarily for data seeding
+-- IDEMPOTENT: YES - Safe to run multiple times
+-- This script can be executed 3+ times without errors or duplicate data
+-- Approach: DELETE old test data before INSERT, use ON CONFLICT for safety
+--
+-- This version disables RLS temporarily for data seeding (required for direct DB access)
+--
+-- Test UUIDs (preserved for consistency):
+-- Users: 11111111-*, 22222222-*, 33333333-*, 44444444-*
+-- Slots: aaaaaaaa-*, bbbbbbbb-*, cccccccc-*, dddddddd-*, eeeeeeee-*, ffffffff-*
 -- ============================================================================
+
+BEGIN;
 
 -- Temporarily disable RLS for inserting test data
 ALTER TABLE users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE parking_slots DISABLE ROW LEVEL SECURITY;
 
--- Clean existing test data (idempotent)
+-- Clean existing test data (makes script idempotent)
 DELETE FROM parking_slots WHERE notes LIKE '%TEST DATA%';
 DELETE FROM users WHERE email LIKE '%@test.local';
 
@@ -89,7 +99,11 @@ INSERT INTO parking_slots (
   NOW() + INTERVAL '10 hours',
   'available',
   'Going out for the day. Call me 30 min before arriving. TEST DATA'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 2: Juan's slot (P2 North Tower, available tomorrow)
 INSERT INTO parking_slots (
@@ -112,7 +126,11 @@ INSERT INTO parking_slots (
   NOW() + INTERVAL '1 day 8 hours',
   'available',
   'Weekend trip. FREE for neighbors! Just message me first. TEST DATA'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 3: Elena's slot (P3 West Tower, available this evening)
 INSERT INTO parking_slots (
@@ -135,7 +153,11 @@ INSERT INTO parking_slots (
   NOW() + INTERVAL '12 hours',
   'available',
   'Night shift at hospital. Slot free 6pm-6am. Viber me first! TEST DATA'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 4: Ben's slot (P4 East Tower, available next week)
 INSERT INTO parking_slots (
@@ -158,7 +180,11 @@ INSERT INTO parking_slots (
   NOW() + INTERVAL '14 days',
   'available',
   'Vacation in Boracay! Slot available for 1 week. TEST DATA'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 5: Maria's second slot (P1 East Tower, TAKEN - for testing status filter)
 INSERT INTO parking_slots (
@@ -181,11 +207,46 @@ INSERT INTO parking_slots (
   NOW() + INTERVAL '6 hours',
   'taken',
   'Already taken by neighbor in 11B. TEST DATA'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  status = EXCLUDED.status,
+  updated_at = NOW();
+
+-- Slot 6: Juan's expired slot (for testing expired status)
+INSERT INTO parking_slots (
+  id,
+  owner_id,
+  location_level,
+  location_tower,
+  location_landmark,
+  available_from,
+  available_until,
+  status,
+  notes
+) VALUES (
+  'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid,
+  '22222222-2222-2222-2222-222222222222'::uuid,
+  'P2',
+  'North Tower',
+  'Near gym',
+  NOW() - INTERVAL '2 days',
+  NOW() - INTERVAL '1 day',
+  'expired',
+  'This was available yesterday. TEST DATA'
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  status = EXCLUDED.status,
+  updated_at = NOW();
 
 -- Re-enable RLS after inserting data
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE parking_slots ENABLE ROW LEVEL SECURITY;
+
+COMMIT;
 
 -- ============================================================================
 -- VERIFICATION QUERIES

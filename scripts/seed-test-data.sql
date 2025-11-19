@@ -4,9 +4,19 @@
 -- Purpose: Create test users and parking slots for local database testing
 -- Database: parkboard_db (local PostgreSQL)
 -- Run with: PGPASSWORD=mannersmakethman psql -U ltpt420 -h localhost -d parkboard_db -f scripts/seed-test-data.sql
+--
+-- IDEMPOTENT: YES - Safe to run multiple times
+-- This script can be executed 3+ times without errors or duplicate data
+-- Approach: DELETE old test data before INSERT, use ON CONFLICT for safety
+--
+-- Test UUIDs (preserved for consistency):
+-- Users: 11111111-*, 22222222-*, 33333333-*, 44444444-*
+-- Slots: aaaaaaaa-*, bbbbbbbb-*, cccccccc-*, dddddddd-*, eeeeeeee-*, ffffffff-*
 -- ============================================================================
 
--- Clean existing test data (idempotent)
+BEGIN;
+
+-- Clean existing test data (makes script idempotent)
 DELETE FROM parking_slots WHERE notes LIKE '%TEST DATA%';
 DELETE FROM users WHERE email LIKE '%@test.local';
 
@@ -89,7 +99,11 @@ INSERT INTO parking_slots (
   'Going out for the day. Call me 30 min before arriving. TEST DATA',
   NOW(),
   NOW()
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 2: Juan's slot (P2 North Tower, available tomorrow)
 INSERT INTO parking_slots (
@@ -116,7 +130,11 @@ INSERT INTO parking_slots (
   'Weekend trip. FREE for neighbors! Just message me first. TEST DATA',
   NOW(),
   NOW()
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 3: Elena's slot (P3 West Tower, available this evening)
 INSERT INTO parking_slots (
@@ -143,7 +161,11 @@ INSERT INTO parking_slots (
   'Night shift at hospital. Slot free 6pm-6am. Viber me first! TEST DATA',
   NOW(),
   NOW()
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 4: Ben's slot (P4 East Tower, available next week)
 INSERT INTO parking_slots (
@@ -170,7 +192,11 @@ INSERT INTO parking_slots (
   'Vacation in Boracay! Slot available for 1 week. TEST DATA',
   NOW(),
   NOW()
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  updated_at = NOW();
 
 -- Slot 5: Maria's second slot (P1 East Tower, TAKEN - for testing status filter)
 INSERT INTO parking_slots (
@@ -197,7 +223,12 @@ INSERT INTO parking_slots (
   'Already taken by neighbor in 11B. TEST DATA',
   NOW(),
   NOW()
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  status = EXCLUDED.status,
+  updated_at = NOW();
 
 -- Slot 6: Juan's expired slot (for testing expired status)
 INSERT INTO parking_slots (
@@ -224,7 +255,14 @@ INSERT INTO parking_slots (
   'This was available yesterday. TEST DATA',
   NOW(),
   NOW()
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  available_from = EXCLUDED.available_from,
+  available_until = EXCLUDED.available_until,
+  status = EXCLUDED.status,
+  updated_at = NOW();
+
+COMMIT;
 
 -- ============================================================================
 -- VERIFICATION QUERIES
