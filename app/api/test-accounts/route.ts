@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { getConnection } from '@/lib/db/connection'
 
 /**
@@ -35,7 +35,7 @@ import { getConnection } from '@/lib/db/connection'
  *   ]
  * }
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get database connection
     const db = await getConnection()

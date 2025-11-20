@@ -76,7 +76,8 @@ function SlotsContent() {
     }
 
     fetchSlots()
-  }, []) // Run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run once on mount. supabase is a stable client.
 
   // Helper function to format date/time
   function formatDateTime(dateString: string) {

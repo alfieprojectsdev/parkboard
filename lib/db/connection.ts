@@ -14,7 +14,7 @@
 // ============================================================================
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
-import { Pool, PoolClient, QueryResult } from 'pg'
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg'
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -24,7 +24,7 @@ export type DatabaseType = 'supabase' | 'neon' | 'local'
 
 export interface DatabaseConnection {
   type: DatabaseType
-  query: <T = any>(text: string, params?: any[]) => Promise<QueryResult<T>>
+  query: <T extends QueryResultRow = Record<string, unknown>>(text: string, params?: Array<unknown>) => Promise<QueryResult<T>>
   close: () => Promise<void>
 }
 
@@ -203,16 +203,19 @@ async function createSupabaseConnection(): Promise<DatabaseConnection> {
   return {
     type: 'supabase',
 
-    query: async <T = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
+    query: async <T extends QueryResultRow = Record<string, unknown>>(text: string, params?: Array<unknown>): Promise<QueryResult<T>> => {
       // For Supabase, we execute raw SQL via rpc
       // This requires the execute_sql function to exist in Supabase
       // See: app/db/migrations/supabase_helpers/execute_sql_function.sql
 
       try {
-        const { data, error } = await client.rpc('execute_sql', {
+        // Supabase RPC typing limitation - params must be any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rpcResponse = await (client.rpc as any)('execute_sql', {
           query_text: text,
           query_params: params || []
         })
+        const { data, error } = rpcResponse
 
         if (error) {
           // If execute_sql doesn't exist yet, provide helpful error message
@@ -228,7 +231,7 @@ async function createSupabaseConnection(): Promise<DatabaseConnection> {
 
         // Convert Supabase response to pg QueryResult format
         return {
-          rows: (data as any) || [],
+          rows: (data as unknown[]) || [],
           rowCount: Array.isArray(data) ? data.length : 0,
           command: '',
           oid: 0,
@@ -258,7 +261,7 @@ async function createPostgresConnection(): Promise<DatabaseConnection> {
   return {
     type,
 
-    query: async <T = any>(text: string, params?: any[]): Promise<QueryResult<T>> => {
+    query: async <T extends QueryResultRow = Record<string, unknown>>(text: string, params?: Array<unknown>): Promise<QueryResult<T>> => {
       try {
         const result = await pool.query<T>(text, params)
         return result
@@ -319,9 +322,9 @@ export async function getConnection(): Promise<DatabaseConnection> {
  * console.log(result.rows[0])
  * ```
  */
-export async function query<T = any>(
+export async function query<T extends QueryResultRow = Record<string, unknown>>(
   text: string,
-  params?: any[]
+  params?: Array<unknown>
 ): Promise<QueryResult<T>> {
   const db = await getConnection()
   return db.query<T>(text, params)
@@ -339,9 +342,9 @@ export async function query<T = any>(
  * }
  * ```
  */
-export async function queryOne<T = any>(
+export async function queryOne<T extends QueryResultRow = Record<string, unknown>>(
   text: string,
-  params?: any[]
+  params?: Array<unknown>
 ): Promise<T | null> {
   const result = await query<T>(text, params)
   return result.rows[0] || null
@@ -426,7 +429,7 @@ export async function testConnection(): Promise<boolean> {
 // EXPORTS
 // ============================================================================
 
-export default {
+const connectionModule = {
   getConnection,
   getDatabaseType,
   query,
@@ -436,3 +439,5 @@ export default {
   testConnection,
   validateEnvironment
 }
+
+export default connectionModule

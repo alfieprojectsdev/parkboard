@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Image from 'next/image'
 
 interface AdBannerData {
   id: string
@@ -133,6 +132,7 @@ export default function AdBanner({ placement, className = '' }: AdBannerProps) {
       >
         {/* Banner Image */}
         <div className="relative w-full h-auto">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={banner.banner_image_url}
             alt={banner.banner_alt_text || `${banner.business_name} advertisement`}

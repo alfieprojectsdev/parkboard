@@ -76,7 +76,8 @@ function BookingsContent() {
     }
 
     fetchBookings()
-  }, [user?.id]) // Only re-fetch if user ID changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]) // Only re-fetch if user ID changes. supabase is a stable client.
 
   // ============================================================================
   // CANCEL BOOKING

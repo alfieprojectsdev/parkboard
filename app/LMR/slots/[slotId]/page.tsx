@@ -86,7 +86,8 @@ function BookSlotContent() {
     }
 
     fetchSlot()
-  }, [slotId]) // slotId is stable from params
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slotId]) // slotId is stable from params. supabase is a stable client.
 
   // ============================================================================
   // CALCULATE PRICE (Updated - only for slots with explicit pricing)

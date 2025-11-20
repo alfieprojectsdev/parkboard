@@ -123,7 +123,7 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
     // Get database version
     const versionResult = await db.query('SELECT version() as version')
     if (versionResult.rows[0]) {
-      report.version = versionResult.rows[0].version
+      report.version = versionResult.rows[0].version as string | undefined
     }
 
     // Check extensions
@@ -133,9 +133,9 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
       WHERE extname IN ('uuid-ossp', 'pgcrypto')
     `)
 
-    extensionsResult.rows.forEach((row: any) => {
-      if (row.extname === 'uuid-ossp') report.extensions.uuid_ossp = true
-      if (row.extname === 'pgcrypto') report.extensions.pgcrypto = true
+    extensionsResult.rows.forEach((row: Record<string, unknown>) => {
+      if ((row.extname as string) === 'uuid-ossp') report.extensions.uuid_ossp = true
+      if ((row.extname as string) === 'pgcrypto') report.extensions.pgcrypto = true
     })
 
     // Check tables exist
@@ -146,9 +146,9 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
         AND tablename IN ('users', 'parking_slots')
     `)
 
-    tablesResult.rows.forEach((row: any) => {
-      if (row.tablename === 'users') report.tables.users = true
-      if (row.tablename === 'parking_slots') report.tables.parking_slots = true
+    tablesResult.rows.forEach((row: Record<string, unknown>) => {
+      if ((row.tablename as string) === 'users') report.tables.users = true
+      if ((row.tablename as string) === 'parking_slots') report.tables.parking_slots = true
     })
 
     // Check RLS is enabled
@@ -161,7 +161,7 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
         AND tablename IN ('users', 'parking_slots')
     `)
 
-    const rlsEnabled = rlsResult.rows.every((row: any) => row.rowsecurity === true)
+    const rlsEnabled = rlsResult.rows.every((row: Record<string, unknown>) => (row.rowsecurity as boolean) === true)
     report.rls.enabled = rlsEnabled
 
     if (!rlsEnabled) {
@@ -177,8 +177,9 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
       WHERE tablename IN ('users', 'parking_slots')
     `)
 
-    policiesResult.rows.forEach((row: any) => {
-      const key = row.policyname as keyof typeof report.rls.policies
+    policiesResult.rows.forEach((row: Record<string, unknown>) => {
+      const policyname = row.policyname as string
+      const key = policyname as keyof typeof report.rls.policies
       report.rls.policies[key] = true
     })
 
@@ -193,7 +194,7 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
     `)
 
     report.performance.indexCount = indexesResult.rows.length
-    report.performance.indexesExist = indexesResult.rows.map((row: any) => row.indexname)
+    report.performance.indexesExist = indexesResult.rows.map((row: Record<string, unknown>) => row.indexname as string)
 
     // Validate overall readiness
     report.ready =
@@ -218,7 +219,7 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
 
   } catch (error) {
     const err = error as Error
-    report.errors.push(`Database probe failed: ${err.message}`)
+    report.errors.push(`Database probe failed: ${err.message || 'Unknown error'}`)
     report.connected = false
   }
 
@@ -317,7 +318,7 @@ export async function isDatabaseReady(): Promise<boolean> {
   try {
     const report = await probeDatabase()
     return report.ready
-  } catch (error) {
+  } catch {
     return false
   }
 }
@@ -362,9 +363,11 @@ export async function getDatabaseStatus(): Promise<{
 // EXPORTS
 // ============================================================================
 
-export default {
+const probeModule = {
   probeDatabase,
   formatProbeReport,
   isDatabaseReady,
   getDatabaseStatus,
 }
+
+export default probeModule

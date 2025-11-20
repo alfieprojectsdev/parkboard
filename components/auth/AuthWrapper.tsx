@@ -505,7 +505,8 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     // Reference: CLAUDE.md lines 163-186
     // "NEVER use object references in useEffect dependencies"
     // ------------------------------------------------------------------------
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Mount-only auth subscription. router/supabase are intentionally excluded.
 
   // 🆕 FIXED: Handle redirect in useEffect (MUST be before conditional returns)
   // --------------------------------------------------------------------------
@@ -528,7 +529,8 @@ export default function AuthWrapper({ children }: AuthWrapperProps) {
     if (!loading && !user) {
       router.push('/login')
     }
-  }, [loading, user, router])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, user, router]) // router is stable from Next.js useRouter(). supabase not used.
 
   // ============================================================================
   // SECTION 4: Render Logic (Conditional Rendering)
