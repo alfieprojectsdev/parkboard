@@ -277,7 +277,7 @@ function NewSlotContent() {
       {/* Help Text */}
       <div className="mt-4 text-sm text-gray-500 text-center">
         <p>After posting, neighbors can see your slot and contact you directly.</p>
-        <p className="mt-1">Update status to "TAKEN" once someone uses it.</p>
+        <p className="mt-1">Update status to &quot;TAKEN&quot; once someone uses it.</p>
       </div>
     </div>
   )

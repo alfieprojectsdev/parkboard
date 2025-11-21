@@ -1,9 +1,12 @@
 // app/LMR/bookings/page.tsx - My bookings
 'use client'
 
+// Force dynamic rendering for pages using auth context
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/components/auth/AuthWrapper'
+import AuthWrapper, { useAuth } from '@/components/auth/AuthWrapper'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -255,9 +258,9 @@ function BookingsContent() {
 
 export default function BookingsPage() {
   return (
-    <>
+    <AuthWrapper>
       <Navigation />
       <BookingsContent />
-    </>
+    </AuthWrapper>
   )
 }

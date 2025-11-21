@@ -165,7 +165,7 @@ export function getDevUserForMiddleware(cookieValue: string | undefined): { id: 
     }
 
     return { id: session.user_id }
-  } catch (error) {
+  } catch {
     return null
   }
 }

@@ -133,10 +133,11 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
       WHERE extname IN ('uuid-ossp', 'pgcrypto')
     `)
 
-    extensionsResult.rows.forEach((row: any) => {
-      if (row.extname === 'uuid-ossp') report.extensions.uuid_ossp = true
-      if (row.extname === 'pgcrypto') report.extensions.pgcrypto = true
-    })
+    for (const row of extensionsResult.rows) {
+      const extRow = row as { extname: string }
+      if (extRow.extname === 'uuid-ossp') report.extensions.uuid_ossp = true
+      if (extRow.extname === 'pgcrypto') report.extensions.pgcrypto = true
+    }
 
     // Check tables exist
     const tablesResult = await db.query(`
@@ -146,10 +147,11 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
         AND tablename IN ('users', 'parking_slots')
     `)
 
-    tablesResult.rows.forEach((row: any) => {
-      if (row.tablename === 'users') report.tables.users = true
-      if (row.tablename === 'parking_slots') report.tables.parking_slots = true
-    })
+    for (const row of tablesResult.rows) {
+      const tableRow = row as { tablename: string }
+      if (tableRow.tablename === 'users') report.tables.users = true
+      if (tableRow.tablename === 'parking_slots') report.tables.parking_slots = true
+    }
 
     // Check RLS is enabled
     const rlsResult = await db.query(`
@@ -161,7 +163,7 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
         AND tablename IN ('users', 'parking_slots')
     `)
 
-    const rlsEnabled = rlsResult.rows.every((row: any) => row.rowsecurity === true)
+    const rlsEnabled = rlsResult.rows.every((row) => (row as { rowsecurity: boolean }).rowsecurity === true)
     report.rls.enabled = rlsEnabled
 
     if (!rlsEnabled) {
@@ -177,10 +179,11 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
       WHERE tablename IN ('users', 'parking_slots')
     `)
 
-    policiesResult.rows.forEach((row: any) => {
-      const key = row.policyname as keyof typeof report.rls.policies
+    for (const row of policiesResult.rows) {
+      const policyRow = row as { policyname: string }
+      const key = policyRow.policyname as keyof typeof report.rls.policies
       report.rls.policies[key] = true
-    })
+    }
 
     // Check indexes
     const indexesResult = await db.query(`
@@ -193,7 +196,7 @@ export async function probeDatabase(): Promise<DatabaseProbeReport> {
     `)
 
     report.performance.indexCount = indexesResult.rows.length
-    report.performance.indexesExist = indexesResult.rows.map((row: any) => row.indexname)
+    report.performance.indexesExist = indexesResult.rows.map((row) => (row as { indexname: string }).indexname)
 
     // Validate overall readiness
     report.ready =
@@ -317,7 +320,7 @@ export async function isDatabaseReady(): Promise<boolean> {
   try {
     const report = await probeDatabase()
     return report.ready
-  } catch (error) {
+  } catch {
     return false
   }
 }
