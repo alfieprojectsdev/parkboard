@@ -39,25 +39,23 @@ import { createBrowserClient } from '@supabase/ssr'
 // ----------------------------------------------------------------------------
 
 export function createClient() {
-  // 🎓 LEARNING: The "!" (Non-null Assertion Operator)
-  // --------------------------------------------------------------------------
-  // TypeScript syntax: process.env.NEXT_PUBLIC_SUPABASE_URL!
-  //                                                          ^ This exclamation mark
-  //
-  // What it means: "I promise this value is NOT null/undefined"
-  // Why we use it: TypeScript thinks env vars might be undefined
-  // Risk: If the env var is actually missing, app will crash at runtime
-  //
-  // Better approach (for production):
-  // if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  //   throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL')
-  // }
-  // --------------------------------------------------------------------------
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  return createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  // Allow build-time static generation to pass (env vars set at runtime in Vercel)
+  if (!supabaseUrl || !supabaseAnonKey) {
+    if (typeof window === 'undefined') {
+      // Server-side: return a stub client for build time
+      // Real requests will have env vars set
+      return createBrowserClient(
+        'https://placeholder.supabase.co',
+        'placeholder-key'
+      )
+    }
+    throw new Error('Missing required environment variables: NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  }
+
+  return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
 // 🎓 LEARNING: When to use this client
