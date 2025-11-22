@@ -113,8 +113,19 @@ export default function LoginPage() {
       // 4. window.location.href = '/' with guaranteed session ✅
       // ----------------------------------------------------------------------
       await new Promise<void>((resolve) => {
+        // Derive session key from Supabase URL: https://PROJECT_REF.supabase.co -> sb-PROJECT_REF-auth-token
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+        const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase/)?.[1] || ''
+        const sessionKey = projectRef ? `sb-${projectRef}-auth-token` : ''
+
         const checkSession = setInterval(() => {
-          const session = localStorage.getItem('sb-cgbkknefvggnhkvmuwsa-auth-token')
+          // If we couldn't derive the key, just wait the timeout
+          if (!sessionKey) {
+            clearInterval(checkSession)
+            resolve()
+            return
+          }
+          const session = localStorage.getItem(sessionKey)
           if (session) {
             clearInterval(checkSession)
             resolve()

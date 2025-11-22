@@ -50,3 +50,5 @@ claude_*.log
 
 # Deprecated files
 *.deprecated_*
+.env.dev
+.env.prod

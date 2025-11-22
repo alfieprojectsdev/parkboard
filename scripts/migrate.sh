@@ -30,7 +30,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-MIGRATIONS_DIR="$PROJECT_ROOT/app/db/migrations"
+MIGRATIONS_DIR="$PROJECT_ROOT/db/migrations"
 MIGRATION_TABLE="schema_migrations"
 
 # Colors for output

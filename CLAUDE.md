@@ -8,119 +8,154 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Purpose:** List unused parking slots or book available slots from neighbors within a condo community.
 
-**Status:** Production-ready MVP (158 unit tests, 8 E2E tests, ~85% coverage)
+**Status:** Production-ready MVP
 
 **Deployment Target:** parkboard.app/LMR (community-specific instance)
 
 ---
 
-## Root Instance Coordination
+## Development Commands
 
-This project is coordinated by the **root-level Claude instance** in `/home/ltpt420/repos/claude-config/`.
+```bash
+# Install dependencies
+npm install
 
-### Before Starting Work in This Project
+# Development
+npm run dev              # Start dev server (port 3000)
+npm run build            # Production build
+npm run lint             # ESLint
+npx tsc --noEmit         # TypeScript type checking
 
-**ALWAYS perform these checks:**
+# Unit Tests (Jest)
+npm test                 # Run all unit tests
+npm run test:watch       # Watch mode
+npm run test:coverage    # With coverage report
+npm test -- --testPathPattern=AuthWrapper  # Run single test file
 
-1. ✅ Check root instance status: `/home/ltpt420/repos/claude-config/ROOT_INSTANCE.md`
-2. ✅ Read shared alerts: `/home/ltpt420/repos/claude-config/coordination/shared-alerts.md`
-3. ✅ Check priorities: `/home/ltpt420/repos/claude-config/coordination/priority-queue.md`
-4. ✅ Update parkboard status: `/home/ltpt420/repos/claude-config/coordination/project-status/parkboard-status.md`
+# E2E Tests (Playwright)
+npm run test:e2e                    # Headless mode (starts dev server)
+npm run test:e2e:headed             # Show browser
+npm run test:e2e:ui                 # Interactive UI mode
+npx playwright test --grep "CUJ-014"  # Run single test by name
+PLAYWRIGHT_BASE_URL=https://parkboard.app npm run test:e2e:prod  # Against production
 
-### Root Instance Roles
-
-**Coordination:** Manages priorities and resolves conflicts across all projects (parkboard, pipetgo, carpool-app)
-
-**Development:** Creates new agents/commands that get deployed to this project
-
-**Documentation:** Maintains agent standards and prompt engineering patterns
-
-### When to Escalate to Root Instance
-
-- **Critical failures** affecting multiple projects or production
-- **Need for new agents/commands** that could benefit other projects
-- **Pattern discoveries** that should be generalized (add to prompt-engineering.md)
-- **Cross-project coordination** required (shared resources, dependencies)
-- **Blocking issues** that affect project priorities
-
-### Communication Format
-
-**For urgent issues, create an alert in shared-alerts.md:**
-
-```markdown
-### YYYY-MM-DD HH:MM: [Brief Description]
-
-**Priority:** URGENT
-**Project:** parkboard
-**Impact:** [what's affected]
-**Action Required:** [specific action]
-```
-
-**For status updates, modify parkboard-status.md:**
-
-```markdown
-**Active Instances:** [count]
-**Current Work:** [description]
-**Blockers:** [any blockers]
-**ETA:** [completion estimate]
+# Database
+./scripts/migrate.sh                # Run migrations
+./scripts/migrate.sh status         # Check migration status
 ```
 
 ---
 
 ## Technology Stack
 
-### Frontend
-- **Framework:** Next.js 15 (App Router)
-- **Language:** TypeScript 5.x (strict mode)
-- **Styling:** Tailwind CSS 3.4 + shadcn/ui components
-- **State Management:** React hooks + Supabase client-side state
-
-### Backend
-- **Database:** Supabase (PostgreSQL 15+)
-- **Authentication:** Supabase Auth (email/password + OAuth)
-- **API:** Next.js API Routes + Server Actions
-- **Server Functions:** PostgreSQL triggers and functions
-
-### Testing
-- **Unit/Component:** Jest 30.2.0 + React Testing Library 16.3.0
-- **E2E:** Playwright 1.56.0
-- **Coverage:** ~85% (158 unit tests, 8 E2E scenarios)
-- **Diagnostic Testing:** Playwright-first (50x faster than F12 debugging)
+- **Framework:** Next.js 14 (App Router)
+- **Language:** TypeScript (strict mode)
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Database:** Supabase (PostgreSQL) or Neon
+- **Auth:** Supabase Auth (email/password + OAuth)
+- **Testing:** Jest + React Testing Library, Playwright E2E
 
 ### Multi-Tenant Architecture
-- **Path-based routing:** `/[community]/` (e.g., `/LMR/slots`)
-- **RLS isolation:** Community data separated via Row Level Security
-- **Dynamic routing:** Community code in URL determines data scope
 
-## Development Commands
+Routes use path-based multi-tenancy: `/[community]/...` (e.g., `/LMR/slots`)
+- Community code in URL determines data scope
+- RLS policies filter data by `community_id`
 
-### Essential Commands
+---
 
-```bash
-# Install dependencies
-npm install
+## Architecture
 
-# Development mode
-npm run dev              # Port 3000 (main branch)
+### Key Directories
 
-# Testing
-npm test                 # Jest unit tests (158 tests, ~10 seconds)
-npm run test:watch       # Watch mode
-npm run test:coverage    # Coverage report
-npm run test:e2e         # Playwright E2E (8 scenarios)
-npm run test:e2e:ui      # Playwright UI mode
-npm run test:e2e:headed  # Show browser during tests
+```
+app/                      # Next.js App Router
+├── LMR/                  # LMR community routes (hardcoded for MVP)
+│   ├── slots/           # Browse/view/create slots
+│   └── bookings/        # User's bookings
+├── (auth)/              # Login/register pages
+├── api/                 # API routes
+└── auth/callback/       # OAuth callback handler
 
-# Linting & Type Checking
-npm run lint             # ESLint
-npx tsc --noEmit        # TypeScript type checking
+components/
+├── auth/AuthWrapper.tsx  # Auth state management (client component)
+├── common/Navigation.tsx # Nav bar
+└── ui/                   # shadcn/ui components
 
-# Database (Supabase)
-# No local commands - use Supabase dashboard
-# SQL Editor: Run db/schema_optimized.sql
+lib/
+├── supabase/client.ts   # Browser Supabase client (use in 'use client')
+├── supabase/server.ts   # Server Supabase client (use in Server Components/API)
+└── auth/dev-session.ts  # Dev mode auth bypass
+
+db/
+├── schema_optimized.sql # Main schema (single source of truth)
+└── migrations/          # Idempotent migration files
 ```
 
-### Port Assignments (Git Worktrees)
+### Supabase Client Pattern
+
+```typescript
+// In 'use client' components:
+import { createClient } from '@/lib/supabase/client'
+
+// In Server Components, API routes, middleware:
+import { createClient } from '@/lib/supabase/server'
+```
+
+Never mix client/server clients - they handle auth cookies differently.
+
+---
+
+## Database
+
+**Schema:** Always reference `db/schema_optimized.sql` (not old versions)
+
+### Key Tables
+- `user_profiles` - User info (name, email, phone, unit_number)
+- `parking_slots` - Available slots (slot_number, type, price, owner)
+- `bookings` - Booking records (slot, renter, times, status)
+
+### Critical Features
+
+**Server-side price calculation:** Database trigger calculates `total_price` - never trust client-provided prices.
+
+**Overlap prevention:** EXCLUDE constraint prevents double-booking at database level (no race conditions).
+
+**RLS policies:** All tables use Row Level Security for multi-tenant isolation and authorization.
+
+---
+
+## Common Gotchas
+
+### 1. useEffect Dependencies (CRITICAL)
+
+```typescript
+// ❌ BAD: Object recreated every render → infinite loop
+const filters = { community: 'LMR' };
+useEffect(() => fetchSlots(filters), [filters]);
+
+// ✅ GOOD: Stable primitives
+const community = 'LMR';
+useEffect(() => fetchSlots({ community }), [community]);
+```
+
+### 2. Test Dates
+
+E2E tests use **2026 dates** to avoid "cannot book in the past" errors. This is intentional.
+
+### 3. Dev Mode Auth Bypass
+
+For local development without Supabase auth:
+- Uses `parkboard_dev_session` cookie
+- Check `lib/auth/dev-session.ts` for implementation
+- Middleware at `middleware.ts` handles the bypass
+
+### 4. Price Manipulation
+
+Never send `total_price` from client. The database trigger calculates it from `price_per_hour` × duration.
+
+---
+
+## Port Assignments (Git Worktrees)
 
 | Branch | Port | Purpose |
 |--------|------|---------|
@@ -129,498 +164,66 @@ npx tsc --noEmit        # TypeScript type checking
 | bugfix-* | 3002 | Bug fixes |
 | experiment-* | 3003 | Prototypes |
 
-## File Structure
+---
 
-```
-parkboard/
-├── app/                        # Next.js App Router
-│   ├── [community]/           # Multi-tenant routing
-│   │   ├── slots/             # Browse slots
-│   │   ├── bookings/          # My bookings
-│   │   └── list-slot/         # List new slot
-│   ├── api/                   # API routes
-│   ├── auth/                  # Auth pages (login, register)
-│   └── profile/               # Profile completion (OAuth)
-│
-├── components/
-│   ├── auth/                  # Auth-related components
-│   ├── common/                # Shared components (Navigation)
-│   └── ui/                    # shadcn/ui base components
-│
-├── lib/
-│   └── supabase/
-│       ├── client.ts          # Browser Supabase client
-│       └── server.ts          # Server Supabase client
-│
-├── db/
-│   └── schema_optimized.sql   # ALWAYS reference this (single source of truth)
-│
-├── __tests__/                 # Jest unit/integration tests
-│   ├── components/
-│   ├── routes/
-│   └── utils/
-│
-├── e2e/                       # Playwright E2E tests
-│   └── user-journeys.spec.ts # 8 complete user flows
-│
-├── middleware.ts              # Server-side auth protection
-├── jest.config.js             # Jest configuration
-└── playwright.config.ts       # Playwright configuration
-```
+## Authentication Flow
 
-## Database Schema
-
-### Location
-**ALWAYS reference:** `db/schema_optimized.sql` (single source of truth)
-
-**NEVER reference:** Old versions like `schema_refined.sql`
-
-### Key Tables
-
-**user_profiles**
-```sql
-- id (UUID, FK to auth.users)
-- name (VARCHAR)
-- email (VARCHAR UNIQUE)
-- phone (VARCHAR)
-- unit_number (VARCHAR UNIQUE) -- One account per unit
-- community_id (UUID) -- Multi-tenant isolation
-```
-
-**parking_slots**
-```sql
-- id (UUID)
-- owner_id (UUID FK to user_profiles)
-- community_id (UUID) -- Multi-tenant isolation
-- slot_number (VARCHAR, e.g., "A-101")
-- slot_type ('covered' | 'uncovered')
-- price_per_hour (NUMERIC)
-- description (TEXT)
-- is_available (BOOLEAN)
-```
-
-**bookings**
-```sql
-- id (UUID)
-- parking_slot_id (UUID FK)
-- renter_id (UUID FK to user_profiles)
-- slot_owner_id (UUID) -- Denormalized for RLS performance
-- start_time (TIMESTAMPTZ)
-- end_time (TIMESTAMPTZ)
-- total_price (NUMERIC) -- Auto-calculated by trigger
-- status ('pending' | 'confirmed' | 'completed' | 'cancelled')
-```
-
-### Critical Database Features
-
-**1. Server-Side Price Calculation (Security)**
-```sql
-CREATE TRIGGER booking_price_calculation
-  BEFORE INSERT OR UPDATE ON bookings
-  FOR EACH ROW EXECUTE FUNCTION calculate_booking_price();
-```
-**Why:** Prevents client manipulation via DevTools
-**Never:** Trust client-provided `total_price`
-
-**2. Temporal Overlap Prevention (Correctness)**
-```sql
-EXCLUDE USING gist (
-  parking_slot_id WITH =,
-  tstzrange(start_time, end_time) WITH &&
-)
-```
-**Why:** Prevents double-booking at database level
-**Result:** Race conditions impossible
-
-**3. Row Level Security (Multi-Tenant + Security)**
-```sql
--- Users see only their community's slots
-CREATE POLICY slots_select ON parking_slots
-  FOR SELECT USING (community_id = get_user_community());
-
--- Users see their bookings (as renter or owner)
-CREATE POLICY bookings_select ON bookings
-  FOR SELECT USING (renter_id = auth.uid() OR slot_owner_id = auth.uid());
-```
-**Why:** Defense-in-depth + multi-tenant isolation
-**Performance:** Uses denormalized `slot_owner_id` (no subquery)
-
-**4. Denormalized Fields (Performance - Reviewed)**
-```sql
-ALTER TABLE bookings ADD COLUMN slot_owner_id UUID;
-CREATE TRIGGER set_slot_owner_id ... -- Auto-populate
-```
-**Rationale:** RLS policy needs owner check frequently
-**Scale:** Premature for <10k bookings (see SESSION_SUMMARY_20241024.md)
-**Status:** ⚠️ Consider removing if simplifying schema
-
-## Authentication & Authorization
-
-### Supabase Auth Configuration
-
-**Providers enabled:**
-- Email/password (primary)
-- Google OAuth (optional, adds complexity)
-- Facebook OAuth (optional, adds complexity)
-
-**Auth flow:**
 1. User signs up/in → Supabase Auth creates `auth.users` record
-2. Trigger creates `user_profiles` record (linked by `id`)
+2. Database trigger creates `user_profiles` record (linked by `id`)
 3. OAuth users: Redirect to `/profile/complete` for phone/unit_number
-4. Middleware enforces server-side auth on protected routes
+4. `middleware.ts` enforces server-side auth on protected routes
 
-### Server-Side Auth Pattern
+**Auth providers:** Email/password (primary), Google OAuth, Facebook OAuth
 
-**Critical:** ALWAYS use server-side auth checks
-```typescript
-// middleware.ts - Runs BEFORE page renders
-export async function middleware(req: NextRequest) {
-  const { data: { session } } = await supabase.auth.getSession();
+---
 
-  if (!session && !publicRoutes.includes(pathname)) {
-    return NextResponse.redirect('/login');
-  }
-
-  return NextResponse.next();
-}
-```
-
-**Never:** Trust client-side auth checks (UX only, not security)
-
-### Authorization Patterns
-
-**Resource Ownership:**
-```typescript
-// Verify user can access resource (server-side)
-const { data: slot } = await supabase
-  .from('parking_slots')
-  .select('*')
-  .eq('id', slotId)
-  .single();
-
-if (slot.owner_id !== session.user.id) {
-  return redirect('/unauthorized');
-}
-```
-
-**RLS handles most authorization** (see database section above)
-
-## Testing Strategy
+## Testing
 
 ### Test-Driven Development (TDD)
 
-**ALWAYS follow TDD workflow:**
-1. Write test first (it fails red)
-2. Implement minimal code to pass (green)
-3. Refactor while keeping tests green
-4. Commit frequently
+Follow TDD workflow: Write test first (red) → Implement minimal code (green) → Refactor
 
-### Testing Commands
+### Diagnostic Testing
 
-```bash
-# Unit tests (fast, run often)
-npm test                    # All tests
-npm run test:watch          # Watch mode
-npm run test:coverage       # With coverage report
-
-# E2E tests (slower, run before commits)
-npm run test:e2e            # Headless mode
-npm run test:e2e:ui         # Interactive UI mode
-npm run test:e2e:headed     # Show browser
-```
-
-### Test Structure
-
-**Unit/Integration tests:** `__tests__/`
-- 158 passing tests
-- ~85% coverage
-- Tests: rendering, user interactions, form validation, API routes, utils
-
-**E2E tests:** `e2e/user-journeys.spec.ts`
-- 8 complete user scenarios:
-  1. Browse slots (unauthenticated)
-  2. Register new user
-  3. Login existing user
-  4. List parking slot
-  5. Book parking slot
-  6. View my bookings
-  7. Cancel booking
-  8. OAuth login + profile completion
-
-### Diagnostic Testing (CRITICAL)
-
-**NEVER use manual F12 debugging for React issues**
-
-**ALWAYS use Playwright diagnostic tests instead** (50x faster):
+**Use Playwright diagnostic tests for debugging** (not manual F12 inspection):
 
 ```typescript
-// Create diagnostic test when debugging
-test('DIAGNOSTIC: Slot form state issue', async ({ page }) => {
-  await page.goto('/LMR/list-slot');
-
-  // Add debug output
-  await page.locator('[data-testid="slot-form"]').screenshot({ path: 'debug.png' });
-
-  // Check state
-  const formData = await page.evaluate(() => {
-    const form = document.querySelector('form');
-    return new FormData(form);
-  });
-
-  console.log('Form data:', Object.fromEntries(formData));
-
-  // Test hypothesis
-  expect(formData.get('slot_number')).toBeTruthy();
+test('DIAGNOSTIC: form state issue', async ({ page }) => {
+  await page.goto('/LMR/slots/new');
+  await page.locator('form').screenshot({ path: 'debug.png' });
+  const formData = await page.evaluate(() =>
+    Object.fromEntries(new FormData(document.querySelector('form')!))
+  );
+  console.log('Form data:', formData);
 });
 ```
 
-**Why:** Playwright tests run in real browser, reproducible, automated
+---
 
 ## Code Conventions
 
-### TypeScript Style
-
-**General:**
-- Strict mode enabled (`tsconfig.json`)
-- Use `const`/`let` (never `var`)
-- Prefer `async/await` over `.then()`
-- Template literals for strings with variables
-- 2-space indentation
-
 **Naming:**
-- Variables/functions: camelCase (`getUserProfile`, `slotData`)
-- Types/Interfaces: PascalCase (`UserProfile`, `BookingStatus`)
-- Database columns: snake_case (`user_id`, `created_at`)
-- React components: PascalCase (`SlotCard`, `BookingForm`)
-- CSS classes: kebab-case (`.slot-card`, `.btn-primary`)
+- Variables/functions: `camelCase`
+- Types/Interfaces: `PascalCase`
+- Database columns: `snake_case`
+- React components: `PascalCase`
 
-**Imports:**
-```typescript
-// External packages first
-import { useState } from 'react';
-import { createClient } from '@supabase/supabase-js';
+**Imports order:** External packages → Internal imports (`@/...`) → Types
 
-// Internal imports
-import { Button } from '@/components/ui/button';
-import { getUserProfile } from '@/lib/utils';
+---
 
-// Types
-import type { Slot, Booking } from '@/types';
-```
+## Agents
 
-### Error Handling
+This project uses specialized agents in `.claude/agents/`:
 
-**Supabase queries:**
-```typescript
-const { data, error } = await supabase
-  .from('parking_slots')
-  .select('*');
-
-if (error) {
-  console.error('Database error:', error);
-  return { error: 'Failed to fetch slots' };
-}
-
-return { data };
-```
-
-**API routes:**
-```typescript
-export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-
-    // Validate input
-    if (!body.slot_number) {
-      return Response.json(
-        { error: 'Slot number required' },
-        { status: 400 }
-      );
-    }
-
-    // Process request
-    const result = await createSlot(body);
-
-    return Response.json({ data: result });
-  } catch (error) {
-    console.error('API error:', error);
-    return Response.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-```
-
-## Common Patterns & Gotchas
-
-### 1. useEffect Dependency Arrays (CRITICAL)
-
-**NEVER use object references in dependencies:**
-```typescript
-// ❌ BAD: Causes infinite loop
-const filters = { community: 'LMR', status: 'available' };
-useEffect(() => {
-  fetchSlots(filters);
-}, [filters]); // Object recreated every render!
-
-// ✅ GOOD: Primitive dependencies
-const community = 'LMR';
-const status = 'available';
-useEffect(() => {
-  fetchSlots({ community, status });
-}, [community, status]); // Stable primitives
-```
-
-**Why:** Object references change every render → infinite re-fetches
-
-**Fixed in:** 3 components (Oct 2024) - see git history
-
-### 2. Supabase Client Usage
-
-**Browser (client-side):**
-```typescript
-import { createClient } from '@/lib/supabase/client';
-
-const supabase = createClient();
-// Use in React components, client-side fetches
-```
-
-**Server (API routes, Server Components):**
-```typescript
-import { createClient } from '@/lib/supabase/server';
-
-const supabase = createClient();
-// Use in API routes, Server Components, middleware
-```
-
-**Never:** Mix client/server Supabase clients (auth context differs)
-
-### 3. Multi-Tenant Routing
-
-**URL structure:**
-```
-/[community]/slots       → /LMR/slots, /SRP/slots
-/[community]/bookings    → /LMR/bookings
-```
-
-**Get community from URL:**
-```typescript
-import { useParams } from 'next/navigation';
-
-const { community } = useParams();
-// Use community code for RLS filtering
-```
-
-**RLS automatically filters by community** (see schema)
-
-### 4. Price Calculation Security
-
-**Never trust client:**
-```typescript
-// ❌ BAD: Client calculates price
-const totalPrice = slotPrice * duration;
-await supabase.from('bookings').insert({
-  total_price: totalPrice, // Client can manipulate this!
-});
-
-// ✅ GOOD: Server calculates (or DB trigger)
-await supabase.from('bookings').insert({
-  parking_slot_id,
-  start_time,
-  end_time,
-  // total_price calculated by DB trigger
-});
-```
-
-**Database trigger handles price** (see schema)
-
-### 5. Booking Overlaps
-
-**Don't check in application:**
-```typescript
-// ❌ BAD: App-level check (race condition possible)
-const existing = await supabase
-  .from('bookings')
-  .select('*')
-  .eq('parking_slot_id', slotId)
-  .overlaps('start_time', 'end_time', [newStart, newEnd]);
-
-if (existing.length > 0) return { error: 'Slot busy' };
-```
-
-**Database EXCLUDE constraint handles this** (atomic, no race conditions)
-
-## Agent Usage Guidelines
-
-### Agent Organization
-
-This project uses a **hybrid agent system**:
-
-**Generic Agents (Symlinked from `/home/ltpt420/repos/claude-config/`):**
-- `architect.md` → Portfolio-wide design and ADRs
-- `database-manager.md` → Generic database optimization
-- `debugger.md` → Systematic bug investigation
-- `developer.md` → TDD implementation
-- `quality-reviewer.md` → Production failure detection
-- `security-auth.md` → Authentication and security audits
-- `technical-writer.md` → Code-level documentation
-- `ux-reviewer.md` → UI/UX and accessibility
-
-**Parkboard-Specific Agents (Local files):**
-- `parkboard-database-manager.md` → Parkboard schema patterns, idempotent migrations
-- `parkboard-api-expert.md` → Next.js App Router, multi-tenant routing
-- `parkboard-auth-expert.md` → AuthWrapper, useEffect gotchas, sign-out fixes
-- `parkboard-test-supervisor.md` → Run 158 tests, Playwright debugging
-- `parkboard-triage-specialist.md` → Route issues to correct agent
-- `parkboard-learning-guide.md` → Onboard new devs to parkboard architecture
-- `parkboard-documentation-expert.md` → Feature docs, user guides (not code-level)
-
-**Why Symlinks?**
-- Generic agents maintained centrally in `claude-config` repo
-- Updates propagate to all projects automatically
-- Parkboard-specific agents capture project-unique knowledge
-- Run `git worktree` status shows symlinks (not duplicates)
-
-### When to Use Each Agent
-
-**@agent-architect** - Design decisions and planning
-```
-Use for:
-- Designing new features (notifications, reviews, payment integration)
-- Database schema changes (new tables, constraints)
-- Multi-tenant architecture decisions
-- Feature scoping and ADR writing
-
-Example:
-"@architect design a rating/review system for parking slots"
-```
-
-**@agent-developer** - Implementation with tests
-```
-Use for:
-- Implementing features from architect's designs
-- Writing React components
-- Creating API routes
-- Bug fixes with known solutions
-
-Example:
-"@developer implement the slot rating component from architect's spec"
-```
-
-**@agent-debugger** - Complex bug investigation
-```
-Use for:
-- useEffect infinite loops
-- RLS policy issues (data not showing)
-- Performance bottlenecks
-- Supabase auth state bugs
-
-NOT for simple syntax errors - fix those directly.
-
-Example:
-"@debugger investigate why bookings aren't showing for slot owners"
-```
+| Agent | Use For |
+|-------|---------|
+| `parkboard-triage-specialist` | Route issues to correct agent |
+| `parkboard-database-manager` | Schema patterns, idempotent migrations |
+| `parkboard-api-expert` | Next.js App Router, multi-tenant routing |
+| `parkboard-auth-expert` | AuthWrapper, useEffect gotchas, sign-out |
+| `parkboard-test-supervisor` | Run tests, Playwright debugging |
+| `parkboard-learning-guide` | Onboard to parkboard architecture |
 
 **@agent-database-manager** - Schema and query optimization
 ```

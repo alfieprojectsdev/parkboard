@@ -36,30 +36,32 @@ import { cookies } from 'next/headers'
 // ----------------------------------------------------------------------------
 
 export function createClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  // Allow build-time static generation to pass (env vars set at runtime in Vercel)
+  if (!supabaseUrl || !supabaseAnonKey) {
+    // Return a stub client for build time - real requests will have env vars set
+    const cookieStore = cookies()
+    return createServerClient(
+      'https://placeholder.supabase.co',
+      'placeholder-key',
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+  }
+
   // Get the cookie store from the current request
-  // This happens on EVERY request - cookies are request-specific
   const cookieStore = cookies()
 
-  // 🎓 LEARNING: Why pass cookies to Supabase?
-  // --------------------------------------------------------------------------
-  // Supabase stores auth session in cookies (not localStorage like old SPAs)
-  // Cookie name: sb-<project-ref>-auth-token
-  //
-  // Flow:
-  // 1. User logs in (browser)
-  // 2. Supabase sets auth cookie (httpOnly, secure)
-  // 3. Browser sends cookie with every request
-  // 4. Server reads cookie to know who the user is
-  // 5. Supabase uses cookie to get user data
-  //
-  // This is MORE SECURE than localStorage because:
-  // - httpOnly cookies can't be stolen by XSS attacks
-  // - Cookies auto-send with requests (no manual handling)
-  // --------------------------------------------------------------------------
-
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
         // 🎓 LEARNING: Cookie getter function

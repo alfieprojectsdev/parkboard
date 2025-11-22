@@ -4,7 +4,6 @@
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { getDevSession } from '@/lib/auth/dev-session'
 import Navigation from '@/components/common/Navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -45,25 +44,12 @@ function NewSlotContent() {
     setError(null)
 
     try {
-      // Get authenticated user - check dev session first, then Supabase
-      const devSession = getDevSession()
-      let userId: string | undefined
-
-      if (devSession) {
-        // Dev mode - use dev session user ID
-        userId = devSession.user_id
-      } else {
-        // Production mode - use Supabase auth
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          throw new Error('You must be logged in to post a slot')
-        }
-        userId = user.id
-      }
-
-      if (!userId) {
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
         throw new Error('You must be logged in to post a slot')
       }
+      const userId = user.id
 
       // Validate required fields
       if (!formData.available_from_date || !formData.available_from_time) {
