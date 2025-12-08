@@ -40,7 +40,7 @@ npx playwright test --grep "CUJ-014"  # Run single test by name
 PLAYWRIGHT_BASE_URL=https://parkboard.app npm run test:e2e:prod  # Against production
 
 # Database
-./scripts/migrate.sh                # Run migrations
+./scripts/migrate.sh                # Run migrations (supports both Supabase and Neon)
 ./scripts/migrate.sh status         # Check migration status
 ```
 
@@ -51,15 +51,16 @@ PLAYWRIGHT_BASE_URL=https://parkboard.app npm run test:e2e:prod  # Against produ
 - **Framework:** Next.js 14 (App Router)
 - **Language:** TypeScript (strict mode)
 - **Styling:** Tailwind CSS + shadcn/ui
-- **Database:** Supabase (PostgreSQL) or Neon
-- **Auth:** Supabase Auth (email/password + OAuth)
+- **Database:** PostgreSQL (Neon or Supabase)
+- **Auth:** NextAuth.js v5 (email/password + OAuth support)
 - **Testing:** Jest + React Testing Library, Playwright E2E
 
-### Multi-Tenant Architecture
+### Database Support
 
-Routes use path-based multi-tenancy: `/[community]/...` (e.g., `/LMR/slots`)
-- Community code in URL determines data scope
-- RLS policies filter data by `community_id`
+The project supports multiple PostgreSQL providers:
+- **Neon** (recommended for production - serverless)
+- **Supabase** (alternative with built-in auth features)
+- **Local PostgreSQL** (recommended for development)
 
 ---
 
@@ -68,40 +69,55 @@ Routes use path-based multi-tenancy: `/[community]/...` (e.g., `/LMR/slots`)
 ### Key Directories
 
 ```
-app/                      # Next.js App Router
-├── LMR/                  # LMR community routes (hardcoded for MVP)
-│   ├── slots/           # Browse/view/create slots
-│   └── bookings/        # User's bookings
-├── (auth)/              # Login/register pages
-├── api/                 # API routes
-└── auth/callback/       # OAuth callback handler
+app/                           # Next.js App Router
+├── LMR/                       # LMR community routes (hardcoded for MVP)
+│   ├── slots/                # Browse/view/create slots
+│   └── bookings/             # User's bookings
+├── (auth)/                    # Login/register pages
+├── api/                       # API routes
+│   └── auth/[...nextauth]/   # NextAuth.js API handlers
+└── layout.tsx                 # Root layout with SessionProvider
 
 components/
-├── auth/AuthWrapper.tsx  # Auth state management (client component)
-├── common/Navigation.tsx # Nav bar
-└── ui/                   # shadcn/ui components
+├── auth/
+│   ├── AuthWrapper.tsx       # Auth context provider (client component)
+│   └── SessionProvider.tsx   # NextAuth SessionProvider wrapper
+├── common/Navigation.tsx      # Nav bar
+└── ui/                        # shadcn/ui components
 
 lib/
-├── supabase/client.ts   # Browser Supabase client (use in 'use client')
-├── supabase/server.ts   # Server Supabase client (use in Server Components/API)
-└── auth/dev-session.ts  # Dev mode auth bypass
+├── auth/
+│   ├── auth.ts               # NextAuth.js config with providers (full config)
+│   └── auth.config.ts        # Edge-compatible auth config (for middleware)
+└── supabase/                  # Optional Supabase clients (legacy support)
 
 db/
-├── schema_optimized.sql # Main schema (single source of truth)
-└── migrations/          # Idempotent migration files
+├── schema_optimized.sql      # Main schema (single source of truth)
+└── migrations/               # Idempotent migration files
+    ├── 001_*.sql
+    ├── 002_*.sql
+    └── 006_nextauth_tables.sql  # NextAuth session tables
 ```
 
-### Supabase Client Pattern
+### Authentication Architecture
+
+**NextAuth.js v5** is used for authentication:
 
 ```typescript
-// In 'use client' components:
-import { createClient } from '@/lib/supabase/client'
+// In Server Components and API routes:
+import { auth } from '@/lib/auth/auth'
+const session = await auth()
 
-// In Server Components, API routes, middleware:
-import { createClient } from '@/lib/supabase/server'
+// In Client Components:
+import { useSession } from 'next-auth/react'
+const { data: session, status } = useSession()
+
+// Or use AuthWrapper context:
+import { useAuth } from '@/components/auth/AuthWrapper'
+const { user, loading } = useAuth()
 ```
 
-Never mix client/server clients - they handle auth cookies differently.
+**Important**: Middleware uses `auth.config.ts` (edge-compatible) while API routes and Server Components use `auth.ts` (full config with database access).
 
 ---
 
@@ -110,9 +126,10 @@ Never mix client/server clients - they handle auth cookies differently.
 **Schema:** Always reference `db/schema_optimized.sql` (not old versions)
 
 ### Key Tables
-- `user_profiles` - User info (name, email, phone, unit_number)
+- `user_profiles` - User info (name, email, phone, unit_number, password_hash)
 - `parking_slots` - Available slots (slot_number, type, price, owner)
 - `bookings` - Booking records (slot, renter, times, status)
+- `Account`, `Session`, `VerificationToken` - NextAuth.js tables (managed by migration 006)
 
 ### Critical Features
 
@@ -120,7 +137,19 @@ Never mix client/server clients - they handle auth cookies differently.
 
 **Overlap prevention:** EXCLUDE constraint prevents double-booking at database level (no race conditions).
 
-**RLS policies:** All tables use Row Level Security for multi-tenant isolation and authorization.
+**RLS policies:** All tables use Row Level Security for authorization (Note: Multi-tenant support was removed in migration 004).
+
+### Database Migrations
+
+Migrations are **idempotent** - safe to run multiple times:
+- `001_hybrid_pricing_model_idempotent.sql` - Original schema
+- `002_multi_tenant_communities_idempotent.sql` - Multi-tenant support (rolled back)
+- `003_community_rls_policies_idempotent.sql` - Community RLS (rolled back)
+- `004_remove_multi_tenant_idempotent.sql` - Simplified single-tenant
+- `005_neon_compatible_schema.sql` - Neon database compatibility
+- `006_nextauth_tables.sql` - NextAuth.js session tables
+
+Run migrations with: `./scripts/migrate.sh`
 
 ---
 
@@ -142,16 +171,25 @@ useEffect(() => fetchSlots({ community }), [community]);
 
 E2E tests use **2026 dates** to avoid "cannot book in the past" errors. This is intentional.
 
-### 3. Dev Mode Auth Bypass
+### 3. NextAuth.js Environment Variables
 
-For local development without Supabase auth:
-- Uses `parkboard_dev_session` cookie
-- Check `lib/auth/dev-session.ts` for implementation
-- Middleware at `middleware.ts` handles the bypass
+Required environment variables:
+- `DATABASE_URL` or `NEON_CONNECTION_STRING` - PostgreSQL connection string
+- `NEXTAUTH_SECRET` - Secret for JWT signing (generate with: `openssl rand -base64 32`)
+- `NEXTAUTH_URL` - Base URL of the app (e.g., `http://localhost:3000`)
 
 ### 4. Price Manipulation
 
 Never send `total_price` from client. The database trigger calculates it from `price_per_hour` × duration.
+
+### 5. Password Hashing
+
+User passwords are hashed with bcrypt in `user_profiles.password_hash`. Always use bcrypt to compare passwords:
+
+```typescript
+import bcrypt from 'bcryptjs'
+const valid = await bcrypt.compare(password, user.password_hash)
+```
 
 ---
 
@@ -168,12 +206,23 @@ Never send `total_price` from client. The database trigger calculates it from `p
 
 ## Authentication Flow
 
-1. User signs up/in → Supabase Auth creates `auth.users` record
-2. Database trigger creates `user_profiles` record (linked by `id`)
-3. OAuth users: Redirect to `/profile/complete` for phone/unit_number
-4. `middleware.ts` enforces server-side auth on protected routes
+### Credentials (Email/Password)
 
-**Auth providers:** Email/password (primary), Google OAuth, Facebook OAuth
+1. User registers → Password hashed with bcrypt → Stored in `user_profiles.password_hash`
+2. User logs in → NextAuth.js validates credentials → JWT token created
+3. JWT contains user data (id, email, name, phone, unitNumber)
+4. Session accessible via `useSession()` hook or `auth()` function
+5. `middleware.ts` enforces server-side auth on protected routes
+
+### OAuth (Google, Facebook - Future)
+
+1. User clicks OAuth provider → Redirected to provider
+2. Provider redirects to `/api/auth/callback/[provider]` with code
+3. NextAuth.js exchanges code for user info → Creates `Account` record
+4. If profile incomplete → Redirect to `/profile/complete` for phone/unit_number
+5. User completes profile → Redirect to app
+
+**Current providers:** Email/password (primary). OAuth support ready but not configured.
 
 ---
 
