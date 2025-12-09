@@ -3,9 +3,11 @@
 -- ============================================================================
 -- Version: 002
 -- Date: 2025-10-13
--- Purpose: Enable /LMR, /SRP, /BGC path-based community routing
+-- Updated: 2025-12-08
+-- Purpose: Enable secure multi-tenant communities with complex alphanumeric codes
 -- Dependencies: 001_hybrid_pricing_model.sql must be run first
 -- Safe to run multiple times
+-- Rollback: Use db/migrations/004_remove_multi_tenant_idempotent.sql
 -- ============================================================================
 
 -- Step 1: Create communities table
@@ -23,7 +25,7 @@ CREATE TABLE IF NOT EXISTS communities (
 );
 
 COMMENT ON TABLE communities IS 'Multi-tenant communities (condos) using ParkBoard';
-COMMENT ON COLUMN communities.community_code IS 'URL path identifier (LMR, SRP, etc.) - uppercase 2-4 chars';
+COMMENT ON COLUMN communities.community_code IS 'Secure alphanumeric code (format: {acronym}_{random}, e.g., lmr_x7k9p2) - acts as shared secret';
 COMMENT ON COLUMN communities.settings IS 'Branding, rules, contact info stored as JSONB';
 COMMENT ON COLUMN communities.status IS 'active = accepting users/slots, inactive = read-only';
 
@@ -47,9 +49,9 @@ BEGIN
   END IF;
 END $$;
 
--- Step 3: Insert LMR community (idempotent with ON CONFLICT)
+-- Step 3: Insert LMR community with complex alphanumeric code (idempotent with ON CONFLICT)
 INSERT INTO communities (community_code, name, display_name, address, city, settings) VALUES (
-  'LMR',
+  'lmr_x7k9p2',
   'Lumiere',
   'Lumiere Residences',
   'Pasig Blvd, Pasig City',
@@ -77,13 +79,13 @@ INSERT INTO communities (community_code, name, display_name, address, city, sett
   }'::jsonb
 ) ON CONFLICT (community_code) DO NOTHING;
 
--- Step 4: Backfill existing data to LMR (idempotent)
+-- Step 4: Backfill existing data to LMR with complex code (idempotent)
 UPDATE user_profiles
-  SET community_code = 'LMR'
+  SET community_code = 'lmr_x7k9p2'
   WHERE community_code IS NULL;
 
 UPDATE parking_slots
-  SET community_code = 'LMR'
+  SET community_code = 'lmr_x7k9p2'
   WHERE community_code IS NULL;
 
 -- Step 5: Make community_code NOT NULL after backfill (idempotent)
@@ -140,18 +142,27 @@ BEGIN
   END IF;
 END $$;
 
--- Step 7: Add indexes for performance (idempotent)
+-- Step 7: Add uniqueness constraints (idempotent)
+-- Email is globally unique (allows user mobility between communities)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_email ON user_profiles(email);
+
+-- Unit number is unique per community (prevents duplicate accounts)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_profiles_community_unit
+  ON user_profiles(community_code, unit_number);
+
+-- Step 8: Add indexes for performance (idempotent)
+-- Community code FIRST in composite indexes for efficient tenant filtering
 CREATE INDEX IF NOT EXISTS idx_user_community ON user_profiles(community_code);
-CREATE INDEX IF NOT EXISTS idx_slot_community ON parking_slots(community_code);
+CREATE INDEX IF NOT EXISTS idx_slot_community_status ON parking_slots(community_code, status);
 CREATE INDEX IF NOT EXISTS idx_community_status ON communities(status) WHERE status = 'active';
 
--- Step 8: Add trigger for updated_at on communities (idempotent)
+-- Step 9: Add trigger for updated_at on communities (idempotent)
 DROP TRIGGER IF EXISTS communities_updated_at ON communities;
 CREATE TRIGGER communities_updated_at
   BEFORE UPDATE ON communities
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
--- Step 9: Create RLS policy for communities table (idempotent)
+-- Step 10: Create RLS policy for communities table (idempotent)
 -- Enable RLS if not already enabled
 ALTER TABLE communities ENABLE ROW LEVEL SECURITY;
 
@@ -167,7 +178,7 @@ CREATE POLICY "public_read_active_communities" ON communities
 -- VERIFICATION QUERIES
 -- ============================================================================
 
--- Check LMR community exists
+-- Check LMR community exists with complex code
 SELECT
   community_code,
   name,
@@ -175,21 +186,37 @@ SELECT
   status,
   created_at
 FROM communities
-WHERE community_code = 'LMR';
+WHERE community_code = 'lmr_x7k9p2';
 
 -- Check all users assigned to LMR
 SELECT
   COUNT(*) as total_users,
-  COUNT(CASE WHEN community_code = 'LMR' THEN 1 END) as lmr_users,
+  COUNT(CASE WHEN community_code = 'lmr_x7k9p2' THEN 1 END) as lmr_users,
   COUNT(CASE WHEN community_code IS NULL THEN 1 END) as unassigned_users
 FROM user_profiles;
 
 -- Check all slots assigned to LMR
 SELECT
   COUNT(*) as total_slots,
-  COUNT(CASE WHEN community_code = 'LMR' THEN 1 END) as lmr_slots,
+  COUNT(CASE WHEN community_code = 'lmr_x7k9p2' THEN 1 END) as lmr_slots,
   COUNT(CASE WHEN community_code IS NULL THEN 1 END) as unassigned_slots
 FROM parking_slots;
+
+-- Verify email global uniqueness constraint
+SELECT
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE tablename = 'user_profiles'
+  AND indexname = 'idx_user_profiles_email';
+
+-- Verify community + unit_number uniqueness constraint
+SELECT
+  indexname,
+  indexdef
+FROM pg_indexes
+WHERE tablename = 'user_profiles'
+  AND indexname = 'idx_user_profiles_community_unit';
 
 -- Verify foreign keys exist
 SELECT

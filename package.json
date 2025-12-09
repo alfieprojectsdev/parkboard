@@ -15,7 +15,8 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
-    "stress:data": "./scripts/generate-stress-test-data.sh"
+    "stress:data": "./scripts/generate-stress-test-data.sh",
+    "rotate-code": "npx tsx scripts/rotate-community-code.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",
@@ -23,12 +24,14 @@
     "@supabase/supabase-js": "^2.58.0",
     "@types/js-cookie": "^3.0.6",
     "@types/pg": "^8.15.6",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.3",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.544.0",
     "next": "14.2.33",
+    "next-auth": "^5.0.0-beta.30",
     "pg": "^8.16.3",
     "react": "^18",
     "react-dom": "^18",
@@ -40,6 +43,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
+    "@types/bcryptjs": "^2.4.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^18",
@@ -50,6 +54,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

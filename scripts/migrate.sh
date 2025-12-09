@@ -247,7 +247,7 @@ run_pending_migrations() {
     local executed_migrations=$(get_executed_migrations "$db_type")
 
     # Find all migration files
-    local migration_files=$(find "$MIGRATIONS_DIR" -name "*.sql" -not -path "*/rollback/*" -not -name "test_*" | sort)
+    local migration_files=$(find "$MIGRATIONS_DIR" -name "*.sql" -not -path "*/rollback/*" -not -name "*_rollback.sql" -not -name "test_*" | sort)
 
     local pending_count=0
 
