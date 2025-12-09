@@ -48,6 +48,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // - Validation: Can check if data matches expected shape
 // ----------------------------------------------------------------------------
 interface SignupRequest {
+  community_code: string
   email: string
   password: string
   name: string
@@ -111,64 +112,100 @@ export async function POST(req: NextRequest) {
     //
     // Cleaner when you need multiple fields from an object
     // ------------------------------------------------------------------------
-    const { email, password, name, phone, unit_number } = body
+    const { community_code, email, password, name, phone, unit_number } = body
 
     // Create admin client (bypasses RLS - we need this to create auth users)
     const supabaseAdmin = createAdminClient()
 
     // ========================================================================
-    // CHECK: Does this email already exist?
+    // STEP 1: Validate community code exists and is active
     // ========================================================================
-    // 🎓 LEARNING: Duplicate check before insert
+    // 🎓 LEARNING: Community code validation
     // ------------------------------------------------------------------------
-    // Why check if email exists?
-    // - Prevent duplicate accounts
-    // - Give user-friendly error message
-    // - Avoid unnecessary database writes
+    // Before creating a user, verify the community code is valid
+    // - Must exist in communities table
+    // - Must be in 'active' status (not disabled)
     //
-    // Alternative: Let insert fail, catch unique constraint error
-    // But that's less clear: user sees "constraint violation" not "email exists"
+    // This prevents users from registering with invalid codes
     // ------------------------------------------------------------------------
+    const { data: community } = await supabaseAdmin
+      .from('communities')
+      .select('community_code, status')
+      .eq('community_code', community_code)
+      .eq('status', 'active')
+      .single()
 
-    const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers()
-
-    // 🎓 LEARNING: Array.some() method
-    // ------------------------------------------------------------------------
-    // array.some(callback) → Returns true if ANY element matches
-    // Similar to: existingUser.users.find(u => u.email === email) !== undefined
-    //
-    // Example:
-    // users = [{ email: 'a@example.com' }, { email: 'b@example.com' }]
-    // users.some(u => u.email === 'a@example.com')  // true
-    // users.some(u => u.email === 'c@example.com')  // false
-    // ------------------------------------------------------------------------
-    const emailExists = existingUser.users.some(u => u.email === email)
-
-    if (emailExists) {
-      // 🎓 LEARNING: HTTP status codes
-      // ----------------------------------------------------------------------
-      // 409 Conflict: Request conflicts with current state
-      // Perfect for "email already exists"
-      //
-      // Common status codes:
-      // - 200 OK: Success
-      // - 201 Created: Resource created successfully
-      // - 400 Bad Request: Invalid input
-      // - 401 Unauthorized: Not logged in
-      // - 403 Forbidden: Logged in but no permission
-      // - 404 Not Found: Resource doesn't exist
-      // - 409 Conflict: Duplicate, version mismatch, etc.
-      // - 500 Internal Server Error: Something broke on server
-      // ----------------------------------------------------------------------
+    if (!community) {
       return NextResponse.json(
-        { error: 'This email is already registered.' },
+        { error: 'Invalid community code. Please check with your building admin.' },
+        { status: 400 }
+      )
+    }
+
+    // ========================================================================
+    // STEP 2: Check email globally unique (allows user mobility)
+    // ========================================================================
+    // 🎓 LEARNING: Email uniqueness across communities
+    // ------------------------------------------------------------------------
+    // Email must be globally unique (not just per community)
+    // Why? Allows user to migrate between communities if needed
+    //
+    // Two cases:
+    // 1. Email exists in same community → Already registered
+    // 2. Email exists in different community → Contact support to migrate
+    //
+    // This gives better error messages than generic "email exists"
+    // ------------------------------------------------------------------------
+    const { data: existingProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('email, community_code')
+      .eq('email', email)
+      .single()
+
+    if (existingProfile) {
+      if (existingProfile.community_code === community_code) {
+        return NextResponse.json(
+          { error: 'This email is already registered in your community.' },
+          { status: 409 }
+        )
+      } else {
+        return NextResponse.json(
+          { error: 'This email is registered in another community. Contact support to migrate.' },
+          { status: 409 }
+        )
+      }
+    }
+
+    // ========================================================================
+    // STEP 3: Check unit number unique per community
+    // ========================================================================
+    // 🎓 LEARNING: Unit number uniqueness per community
+    // ------------------------------------------------------------------------
+    // Unit numbers must be unique within a community
+    // Why? Each unit can only have one registered user
+    //
+    // Different from email: unit numbers CAN duplicate across communities
+    // Example: Unit 101 in Building A != Unit 101 in Building B
+    //
+    // This prevents two users from claiming the same unit in same community
+    // ------------------------------------------------------------------------
+    const { data: existingUnit } = await supabaseAdmin
+      .from('user_profiles')
+      .select('unit_number')
+      .eq('community_code', community_code)
+      .eq('unit_number', unit_number)
+      .single()
+
+    if (existingUnit) {
+      return NextResponse.json(
+        { error: `Unit ${unit_number} is already registered. Contact your admin if incorrect.` },
         { status: 409 }
       )
     }
 
 
     // ========================================================================
-    // STEP 1: Create auth user
+    // STEP 4: Create auth user
     // ========================================================================
     // 🎓 LEARNING: Transaction pattern (Manual rollback)
     // ------------------------------------------------------------------------
@@ -232,7 +269,7 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================================================
-    // STEP 2: Create user profile (Transaction Part 2)
+    // STEP 5: Create user profile (Transaction Part 2)
     // ========================================================================
     // 🎓 LEARNING: Foreign key relationship
     // ------------------------------------------------------------------------
@@ -252,7 +289,7 @@ export async function POST(req: NextRequest) {
         email,
         phone,
         unit_number,
-        community_code: 'LMR'  // Multi-tenant: Default to Lumiere community
+        community_code  // From validated user input (not hardcoded)
       })
 
     if (profileError) {

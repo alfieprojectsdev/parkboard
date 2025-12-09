@@ -15,6 +15,7 @@ export default function RegisterPage() {
   const supabase = createClient()
 
   const [formData, setFormData] = useState({
+    community_code: '',
     name: '',
     email: '',
     password: '',
@@ -41,6 +42,7 @@ export default function RegisterPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            community_code: formData.community_code,
             email: formData.email,
             password: formData.password,
             name: formData.name,
@@ -97,12 +99,32 @@ export default function RegisterPage() {
           <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
             <p className="text-xs font-semibold text-yellow-900 mb-2">MVP Testing Note:</p>
             <div className="text-xs text-yellow-800">
-              <p>Test users (user1-user20@parkboard.test) are already available.</p>
+              <p>Test community code: <span className="font-mono font-bold">lmr_x7k9p2</span></p>
+              <p className="mt-1">Test users (user1-user20@parkboard.test) are already available.</p>
               <p className="mt-1">You can register a new account or use existing test credentials on the login page.</p>
             </div>
           </div>
 
           <form onSubmit={handleRegister} className="space-y-4">
+
+            {/* Community Code */}
+            <div>
+              <label htmlFor="community_code" className="block text-sm font-medium mb-1">
+                Community Code
+              </label>
+              <Input
+                id="community_code"
+                type="text"
+                required
+                value={formData.community_code}
+                onChange={(e) => setFormData({ ...formData, community_code: e.target.value })}
+                placeholder="Provided by your building admin"
+                className="font-mono"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Enter the code shared in your building&apos;s group chat
+              </p>
+            </div>
 
             {/* Name */}
             <div>

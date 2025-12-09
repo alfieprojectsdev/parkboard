@@ -19,7 +19,8 @@
 'use client'
 
 import { useState, FormEvent } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { signIn } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -27,7 +28,7 @@ import { Alert } from '@/components/ui/alert'
 import Link from 'next/link'
 
 export default function LoginPage() {
-  const supabase = createClient()
+  const router = useRouter()
 
   // 🎓 LEARNING: Controlled Inputs Pattern
   // --------------------------------------------------------------------------
@@ -48,6 +49,7 @@ export default function LoginPage() {
   //
   // Trade-off: More verbose, but more powerful
   // --------------------------------------------------------------------------
+  const [communityCode, setCommunityCode] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
@@ -80,79 +82,46 @@ export default function LoginPage() {
   // --------------------------------------------------------------------------
   const [error, setError] = useState<string | null>(null)
 
-  // Email/Password Login Handler
+  // Email/Password Login Handler with Community Code
   async function handleLogin(e: FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
     try {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // 🎓 LEARNING: NextAuth.js signIn with credentials
+      // ----------------------------------------------------------------------
+      // signIn('credentials', { ... }) calls the authorize() function
+      // in lib/auth/auth.ts with the provided credentials
+      //
+      // redirect: false prevents automatic redirect on error
+      // This allows us to show custom error messages
+      // ----------------------------------------------------------------------
+      const result = await signIn('credentials', {
+        communityCode,
         email,
-        password
+        password,
+        redirect: false,
       })
 
-      if (signInError) {
-        throw signInError
+      if (result?.error) {
+        throw new Error('Invalid credentials or community code')
       }
 
-      // 🎓 LEARNING: Why we wait for session before redirecting
-      // ----------------------------------------------------------------------
-      // CRITICAL FIX: Wait for Supabase to write session to localStorage
-      //
-      // Problem: signInWithPassword() completes before session is saved
-      //          If we redirect immediately, the session write is interrupted
-      //          Result: E2E tests timeout, user appears not logged in
-      //
-      // Solution: Poll localStorage until session appears (max 5 seconds)
-      //
-      // Flow:
-      // 1. signInWithPassword() starts async session save ✅
-      // 2. Poll localStorage every 50ms until session exists ✅
-      // 3. Session confirmed → Safe to redirect ✅
-      // 4. window.location.href = '/' with guaranteed session ✅
-      // ----------------------------------------------------------------------
-      await new Promise<void>((resolve) => {
-        // Derive session key from Supabase URL: https://PROJECT_REF.supabase.co -> sb-PROJECT_REF-auth-token
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-        const projectRef = supabaseUrl.match(/https:\/\/([^.]+)\.supabase/)?.[1] || ''
-        const sessionKey = projectRef ? `sb-${projectRef}-auth-token` : ''
-
-        const checkSession = setInterval(() => {
-          // If we couldn't derive the key, just wait the timeout
-          if (!sessionKey) {
-            clearInterval(checkSession)
-            resolve()
-            return
-          }
-          const session = localStorage.getItem(sessionKey)
-          if (session) {
-            clearInterval(checkSession)
-            resolve()
-          }
-        }, 50) // Check every 50ms
-
-        // Timeout after 5 seconds (fallback)
-        setTimeout(() => {
-          clearInterval(checkSession)
-          resolve()
-        }, 5000)
-      })
-
-      // Now safe to redirect - session is guaranteed to be in localStorage
-      window.location.href = '/'
-
-    } catch (err: unknown) {
-      const error = err as Error
-      console.error('Login error:', error)
-      setError(error.message)
+      if (result?.ok) {
+        // Redirect to dashboard (unified, no community in path)
+        router.push('/LMR')
+      }
+    } catch (err) {
+      setError((err as Error).message || 'Login failed')
     } finally {
       setLoading(false)
     }
   }
 
   // ⏸️ COMMENTED OUT FOR MVP TESTING: OAuth handlers
-  // Uncomment when OAuth providers are configured in Supabase
+  // Uncomment when OAuth providers are configured in NextAuth.js
+  // See lib/auth/auth.ts for provider configuration
   /*
   // Google OAuth Login Handler
   async function handleGoogleLogin() {
@@ -160,22 +129,9 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          }
-        }
+      await signIn('google', {
+        callbackUrl: '/LMR',
       })
-
-      if (oauthError) throw oauthError
-
-      // Supabase will redirect to Google login page
-      // User will be redirected back to /auth/callback after login
-
     } catch (err: unknown) {
       const error = err as Error
       console.error('Google login error:', error)
@@ -190,18 +146,9 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: 'facebook',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
+      await signIn('facebook', {
+        callbackUrl: '/LMR',
       })
-
-      if (oauthError) throw oauthError
-
-      // Supabase will redirect to Facebook login page
-      // User will be redirected back to /auth/callback after login
-
     } catch (err: unknown) {
       const error = err as Error
       console.error('Facebook login error:', error)
@@ -235,6 +182,7 @@ export default function LoginPage() {
           <div className="mb-6 p-3 bg-blue-50 border border-blue-200 rounded-md">
             <p className="text-xs font-semibold text-blue-900 mb-2">Test Credentials:</p>
             <div className="text-xs text-blue-800 space-y-1">
+              <p><strong>Community Code:</strong> LMR</p>
               <p><strong>Email:</strong> user1@parkboard.test</p>
               <p><strong>Password:</strong> test123456</p>
               <p className="text-blue-600 mt-2 italic">More test users: user2-user20@parkboard.test</p>
@@ -242,7 +190,7 @@ export default function LoginPage() {
           </div>
 
           {/* ⏸️ COMMENTED OUT FOR MVP TESTING: OAuth Login (Google/Facebook) */}
-          {/* Uncomment when OAuth providers are configured in Supabase */}
+          {/* Uncomment when OAuth providers are configured in NextAuth.js */}
           {/*
           <div className="space-y-3 mb-6">
             <Button
@@ -295,6 +243,22 @@ export default function LoginPage() {
               handleLogin will call e.preventDefault() to stop browser submission
               ---------------------------------------------------------------------- */}
           <form onSubmit={handleLogin} className="space-y-4">
+
+            {/* Community Code Input - FIRST field for multi-tenant authentication */}
+            <div>
+              <label htmlFor="communityCode" className="block text-sm font-medium mb-1">
+                Community Code
+              </label>
+              <Input
+                id="communityCode"
+                type="text"
+                required
+                value={communityCode}
+                onChange={(e) => setCommunityCode(e.target.value)}
+                placeholder="Provided by your building admin"
+                className="font-mono"
+              />
+            </div>
 
             {/* Email Input - Controlled Component */}
             <div>
@@ -429,20 +393,23 @@ export default function LoginPage() {
 // 🎓 RECAP: Login Flow (User Perspective)
 // ============================================================================
 // 1. User visits /login
-// 2. Types email and password (controlled inputs update state)
+// 2. Types community code, email and password (controlled inputs update state)
 // 3. Clicks "Sign In" (or presses Enter)
 //    → handleLogin() called
 //    → e.preventDefault() stops browser submission
 // 4. setLoading(true) → Button shows "Signing in..." and disables
-// 5. API call: supabase.auth.signInWithPassword()
+// 5. API call: signIn('credentials', { communityCode, email, password })
+//    → NextAuth.js calls authorize() in lib/auth/auth.ts
+//    → Queries user_profiles table for matching email + community_code
+//    → Verifies password with bcrypt
 // 6. If error:
-//    → catch block → setError(message)
+//    → catch block → setError('Invalid credentials or community code')
 //    → Alert shows error
 //    → finally → setLoading(false) → Button re-enables
 // 7. If success:
-//    → Session saved in cookies
-//    → router.push('/slots') → Redirects to slots page
-//    → AuthWrapper detects session → Fetches profile → Renders app
+//    → JWT token created with user data (id, email, name, phone, unitNumber, communityCode)
+//    → router.push('/LMR') → Redirects to community page
+//    → Session accessible via useSession() hook
 //
 // ============================================================================
 // 🎓 KEY CONCEPTS DEMONSTRATED
@@ -456,5 +423,7 @@ export default function LoginPage() {
 // ✅ Dynamic content: {condition ? <A> : <B>}
 // ✅ Next.js Link: Client-side navigation
 // ✅ TypeScript types: FormEvent, useState<string>
+// ✅ NextAuth.js v5: signIn with credentials provider
+// ✅ Multi-tenant authentication: community code + email + password
 //
 // ============================================================================
