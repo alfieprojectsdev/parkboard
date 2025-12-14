@@ -198,11 +198,14 @@ export default function RegisterPage() {
                 id="password"
                 type="password"
                 required
-                minLength={6}
+                minLength={12}
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                placeholder="••••••"
+                placeholder="••••••••••••"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Minimum 12 characters for security
+              </p>
             </div>
 
             {/* Confirm Password */}
@@ -214,10 +217,10 @@ export default function RegisterPage() {
                 id="confirmPassword"
                 type="password"
                 required
-                minLength={6}
+                minLength={12}
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                placeholder="••••••"
+                placeholder="••••••••••••"
               />
             </div>
 

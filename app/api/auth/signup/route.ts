@@ -114,6 +114,21 @@ export async function POST(req: NextRequest) {
     // ------------------------------------------------------------------------
     const { community_code, email, password, name, phone, unit_number } = body
 
+    // ========================================================================
+    // STEP 0: Validate password strength
+    // ========================================================================
+    // P1-002: Password validation (minimum 12 characters)
+    // ------------------------------------------------------------------------
+    // Strong passwords reduce account takeover risk
+    // 12 characters is NIST recommendation for user-chosen passwords
+    // ------------------------------------------------------------------------
+    if (!password || password.length < 12) {
+      return NextResponse.json(
+        { error: 'Password must be at least 12 characters long.' },
+        { status: 400 }
+      )
+    }
+
     // Create admin client (bypasses RLS - we need this to create auth users)
     const supabaseAdmin = createAdminClient()
 
@@ -136,8 +151,9 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (!community) {
+      // P0-006 FIX: Use generic error to prevent community code enumeration
       return NextResponse.json(
-        { error: 'Invalid community code. Please check with your building admin.' },
+        { error: 'Invalid registration credentials. Please verify your information and try again.' },
         { status: 400 }
       )
     }
@@ -163,17 +179,11 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (existingProfile) {
-      if (existingProfile.community_code === community_code) {
-        return NextResponse.json(
-          { error: 'This email is already registered in your community.' },
-          { status: 409 }
-        )
-      } else {
-        return NextResponse.json(
-          { error: 'This email is registered in another community. Contact support to migrate.' },
-          { status: 409 }
-        )
-      }
+      // P0-006 FIX: Generic error - don't reveal if email is in same/different community
+      return NextResponse.json(
+        { error: 'This email is already registered. Please use a different email or contact support.' },
+        { status: 409 }
+      )
     }
 
     // ========================================================================
@@ -197,8 +207,9 @@ export async function POST(req: NextRequest) {
       .single()
 
     if (existingUnit) {
+      // P0-006 FIX: Generic error - don't reveal specific unit conflicts
       return NextResponse.json(
-        { error: `Unit ${unit_number} is already registered. Contact your admin if incorrect.` },
+        { error: 'This unit is already registered. Please verify your unit number or contact support.' },
         { status: 409 }
       )
     }
@@ -244,7 +255,8 @@ export async function POST(req: NextRequest) {
       // ----------------------------------------------------------------------
       user_metadata: {
         name,  // Store in auth metadata too
-        unit_number
+        unit_number,
+        community_code  // Store community_code in auth metadata for session
       }
     })
 

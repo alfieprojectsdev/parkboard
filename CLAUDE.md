@@ -432,6 +432,116 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 **Database:** Already deployed on Supabase (no migration needed)
 
+## Using Gemini CLI for Large Codebase Analysis
+
+When analyzing large codebases or multiple files that might exceed context limits, use the Gemini CLI with its massive context window. Use `gemini -p` to leverage Google Gemini's large context capacity.
+
+### File and Directory Inclusion Syntax
+
+Use the `@` syntax to include files and directories in your Gemini prompts. The paths should be relative to WHERE you run the gemini command:
+
+**Examples:**
+
+```bash
+# Single file analysis
+gemini -p "@app/api/auth/signup/route.ts Explain the signup validation flow"
+
+# Multiple files
+gemini -p "@lib/auth/auth.ts @lib/auth/auth.config.ts Compare the NextAuth configurations"
+
+# Entire directory
+gemini -p "@components/auth/ Summarize all authentication components and their purposes"
+
+# Multiple directories
+gemini -p "@app/(auth)/ @components/auth/ Compare the authentication UI pages and auth components"
+
+# Current directory and subdirectories
+gemini -p "@./ Give me an overview of the ParkBoard architecture"
+
+# Or use --all_files flag
+gemini --all_files -p "Analyze all TypeScript files and identify common patterns"
+```
+
+### Implementation Verification Examples
+
+```bash
+# Check if a feature is implemented
+gemini -p "@app/ @components/ Is multi-tenant support fully implemented? Show relevant code"
+
+# Verify authentication flow
+gemini -p "@lib/auth/ @app/api/auth/ Does the NextAuth.js setup match the documentation in CLAUDE.md?"
+
+# Check for security patterns
+gemini -p "@app/api/ @middleware.ts Are all API routes properly protected with authentication checks?"
+
+# Verify database schema consistency
+gemini -p "@db/ @lib/ Does the database schema match the TypeScript interfaces?"
+
+# Check test coverage
+gemini -p "@__tests__/ @e2e/ What user journeys are covered by tests and what's missing?"
+
+# Verify RLS policies
+gemini -p "@db/schema_optimized.sql Are RLS policies implemented for all tables?"
+
+# Check pricing logic
+gemini -p "@db/schema_optimized.sql @app/api/ Is price calculation server-side only?"
+
+# Verify component patterns
+gemini -p "@components/ Do all components follow the same pattern for error handling?"
+```
+
+### When to Use Gemini CLI
+
+Use `gemini -p` when:
+- Analyzing entire codebases or large directories
+- Comparing multiple implementations (e.g., different auth flows)
+- Need to understand project-wide patterns or architecture
+- Current context window is insufficient for the task
+- Working with files totaling more than 100KB
+- Verifying if authentication, multi-tenancy, or security patterns are consistent
+- Checking for data consistency between schema and code
+- Understanding the complete booking workflow across components
+- Cross-referencing database schema with API routes
+- Analyzing test coverage across unit and E2E tests
+
+### Important Notes
+
+- Paths in `@` syntax are relative to your current working directory when invoking gemini
+- The CLI will include file contents directly in the context
+- No need for `--yolo` flag for read-only analysis
+- Gemini's context window can handle entire codebases that would overflow Claude's context
+- When checking implementations, be specific about what you're looking for to get accurate results
+- Particularly useful for verifying consistency between database schema and application code
+- Helpful for understanding multi-tenant architecture and RLS policies
+
+### Multimodal Capabilities
+
+Gemini CLI is multimodal and can read PDFs, images, and screenshots. This is particularly useful for analyzing UI/UX or documentation.
+
+**Reading Screenshots:**
+
+```bash
+# Analyze UI screenshots from Playwright tests
+gemini -p "@e2e/screenshots/*.png Analyze the booking form UI for accessibility issues"
+
+# Compare before/after screenshots
+gemini -p "@screenshots/before.png @screenshots/after.png What changed in the UI?"
+```
+
+**Reading Documentation:**
+
+```bash
+# Extract requirements from PDF docs
+gemini -p "@docs/*.pdf Summarize all security requirements mentioned in the documentation"
+```
+
+**Use Cases for Multimodal Analysis:**
+
+- **UI/UX review** - Analyze screenshots for accessibility and design consistency
+- **Visual regression testing** - Compare screenshots to detect unintended changes
+- **Documentation extraction** - Pull requirements from PDF specs
+- **Diagram analysis** - Understand architecture diagrams or flowcharts
+
 ## Resources
 
 - **Supabase Docs:** https://supabase.com/docs
