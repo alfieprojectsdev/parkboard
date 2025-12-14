@@ -16,7 +16,10 @@
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:report": "playwright show-report",
     "stress:data": "./scripts/generate-stress-test-data.sh",
-    "rotate-code": "npx tsx scripts/rotate-community-code.ts"
+    "rotate-code": "npx tsx scripts/rotate-community-code.ts",
+    "migrate": "npx tsx scripts/run-migrations.ts",
+    "migrate:dry-run": "npx tsx scripts/run-migrations.ts --dry-run",
+    "screenshots": "npx tsx scripts/capture-screenshots.ts"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.2.3",

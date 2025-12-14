@@ -42,6 +42,11 @@ PLAYWRIGHT_BASE_URL=https://parkboard.app npm run test:e2e:prod  # Against produ
 # Database
 ./scripts/migrate.sh                # Run migrations (supports both Supabase and Neon)
 ./scripts/migrate.sh status         # Check migration status
+
+# TypeScript Migration Runner (Neon)
+npm run migrate                     # Run pending migrations
+npm run migrate:dry-run             # Preview migrations without executing
+npx tsx scripts/run-migrations.ts   # Direct execution
 ```
 
 ---
@@ -401,17 +406,129 @@ const debouncedSearch = useMemo(
 );
 ```
 
+---
+
+## Security Architecture
+
+### Row Level Security (RLS)
+
+**Status:** Migration 003 RLS policies are **SKIPPED** - Not applicable to current architecture
+
+**Reason:** ParkBoard uses NextAuth.js v5 for session management (JWT tokens), not Supabase session cookies. RLS policies using `auth.uid()` require Supabase sessions, which we don't maintain.
+
+**Alternative:** Application-level tenant isolation (see below)
+
+**Documentation:** See `docs/SECURITY_ARCHITECTURE.md` for comprehensive security architecture explanation.
+
+### Tenant Isolation Pattern (CRITICAL)
+
+**ALL database queries MUST filter by community_code.** This is our primary security mechanism.
+
+**Required Pattern:**
+```typescript
+// STEP 1: Get authenticated user's community
+const authResult = await getSessionWithCommunity()
+if ('error' in authResult) {
+  return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+}
+
+const { userId, communityCode } = authResult
+
+// STEP 2: Filter query by community_code
+const { data, error } = await supabaseAdmin
+  .from('parking_slots')
+  .select('*')
+  .eq('community_code', communityCode)  // REQUIRED - Tenant isolation
+  .eq('status', 'active')
+```
+
+**Code Review Checklist** (MANDATORY for all PRs touching database):
+- [ ] Verify `getSessionWithCommunity()` is called
+- [ ] Verify query includes `.eq('community_code', communityCode)`
+- [ ] Check for raw SQL (should use Supabase query builder)
+- [ ] Verify unit tests mock tenant isolation
+- [ ] Verify E2E tests check cross-community access is blocked
+
+### Helper Functions
+
+**lib/auth/tenant-access.ts** provides these utilities:
+
+```typescript
+// Get session with community context (use in ALL API routes)
+export async function getSessionWithCommunity()
+
+// Verify user can access requested community
+export function ensureCommunityAccess(requestedCommunity, userCommunity)
+```
+
+**Example Usage:**
+```typescript
+// app/api/slots/route.ts
+import { getSessionWithCommunity } from '@/lib/auth/tenant-access'
+
+export async function GET(req: NextRequest) {
+  const authResult = await getSessionWithCommunity()
+  if ('error' in authResult) {
+    return NextResponse.json({ error: authResult.error }, { status: authResult.status })
+  }
+
+  const { communityCode } = authResult
+
+  const { data } = await supabaseAdmin
+    .from('parking_slots')
+    .select('*')
+    .eq('community_code', communityCode)  // Application-level filtering
+
+  return NextResponse.json({ data })
+}
+```
+
+### Security Testing Requirements
+
+**Unit Tests** - Must verify tenant isolation:
+```typescript
+it('should filter slots by user community code', async () => {
+  mockAuth.mockResolvedValue({
+    user: { id: 'user-123', communityCode: 'lmr_x7k9p2' }
+  })
+
+  await GET(mockRequest)
+
+  expect(mockSupabase.from().select().eq).toHaveBeenCalledWith('community_code', 'lmr_x7k9p2')
+})
+```
+
+**E2E Tests** - Must verify cross-community isolation:
+```typescript
+test('CUJ-020: User from LMR cannot access SRP slots', async ({ page }) => {
+  // Login as LMR user
+  await loginAs(page, 'lmr_x7k9p2')
+
+  // Attempt to access SRP community data (should fail)
+  const response = await page.request.get('/api/slots?community=srp_m4n8q1')
+
+  expect(response.status()).toBe(403)
+})
+```
+
+---
+
 ## Security Checklist
 
 Before deploying to production:
 
-- [ ] All SQL queries use RLS (no `.rpc()` without RLS)
+- [ ] All database queries filter by `community_code` (application-level tenant isolation)
+- [ ] All API routes use `getSessionWithCommunity()` helper
+- [ ] Unit tests verify tenant isolation for each API route
+- [ ] E2E test CUJ-020 (cross-community isolation) passes
 - [ ] Server-side auth checks in middleware
 - [ ] Price calculated server-side (never trust client)
 - [ ] OAuth redirect URIs validated
 - [ ] CORS configured (if needed)
 - [ ] Environment variables not exposed to client
-- [ ] Rate limiting on auth endpoints (Supabase built-in)
+- [ ] Rate limiting on login endpoint (P0-005)
+- [ ] Generic error messages to prevent enumeration (P0-006)
+- [ ] Password validation minimum 12 characters (P1-002)
 - [ ] XSS prevention (React escapes by default, but check `dangerouslySetInnerHTML`)
 
 ## Deployment
