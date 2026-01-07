@@ -8,7 +8,7 @@
 // which routes it should run on via the matcher.
 // ============================================================================
 
-export { auth as middleware } from '@/lib/auth/auth'
+export { auth as middleware } from '@/lib/auth/auth.config'
 
 // ============================================================================
 // MATCHER CONFIGURATION

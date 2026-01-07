@@ -100,4 +100,5 @@ export const authConfig: NextAuthConfig = {
   providers: [],
 }
 
+export { auth } from './auth'
 export default authConfig
