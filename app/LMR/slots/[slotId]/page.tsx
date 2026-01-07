@@ -1,6 +1,9 @@
 // app/LMR/slots/[slotId]/page.tsx - Slot detail & booking (HYBRID PRICING)
 'use client'
 
+// Force dynamic rendering - prevent static pre-render at build time
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'

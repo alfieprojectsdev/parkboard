@@ -18,6 +18,9 @@
 
 'use client'
 
+// Force dynamic rendering - prevent static pre-render at build time
+export const dynamic = 'force-dynamic'
+
 import { useState, FormEvent } from 'react'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
@@ -109,8 +112,17 @@ export default function LoginPage() {
       }
 
       if (result?.ok) {
-        // Redirect to dashboard (unified, no community in path)
-        router.push('/LMR')
+        // TODO: Implement single-route architecture (/dashboard)
+        // Current MVP uses path-based routing (/LMR, /SRP, etc.)
+        // For now, use /LMR as default until Phase 4 migration completes
+        // See: docs/MULTI_TENANCY_IMPROVEMENTS.md (lines 827-872)
+        //
+        // SECURITY NOTE: This hardcoded redirect is a known limitation.
+        // Once single-route architecture is implemented, all users will
+        // redirect to /dashboard (or /slots) regardless of community code.
+        // Community isolation will be enforced via session.user.communityCode
+        // in RLS policies and application-level checks.
+        router.push('/LMR/slots')
       }
     } catch (err) {
       setError((err as Error).message || 'Login failed')

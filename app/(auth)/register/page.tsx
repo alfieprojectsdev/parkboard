@@ -1,6 +1,10 @@
 // app/(auth)/register/page.tsx
 'use client'
 
+// Force dynamic rendering - prevent static pre-render at build time
+// This allows Supabase client to initialize at runtime when env vars are available
+export const dynamic = 'force-dynamic'
+
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -26,7 +30,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-    async function handleRegister(e: FormEvent) {
+  async function handleRegister(e: FormEvent) {
       e.preventDefault()
       setLoading(true)
       setError(null)  // Clear previous errors

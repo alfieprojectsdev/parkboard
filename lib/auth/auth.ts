@@ -17,6 +17,7 @@ import bcrypt from 'bcryptjs'
 import { Pool } from 'pg'
 
 import { authConfig } from './auth.config'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 // ============================================================================
 // DATABASE CONNECTION
@@ -101,6 +102,18 @@ export const {
           const communityCode = credentials.communityCode as string
           const email = credentials.email as string
           const password = credentials.password as string
+
+          // ======================================================================
+          // RATE LIMITING - Check BEFORE database query
+          // ======================================================================
+          // P0-005: Prevent brute-force password attacks
+          // Use email as identifier to limit login attempts per email
+          // Default: 5 attempts per 15 minutes
+          // ----------------------------------------------------------------------
+          if (!checkRateLimit(email)) {
+            console.error('[Auth] Rate limit exceeded for email:', email)
+            return null // NextAuth interprets null as failed login
+          }
 
           // Query user_profiles table for user with matching email AND community_code
           const db = getPool()

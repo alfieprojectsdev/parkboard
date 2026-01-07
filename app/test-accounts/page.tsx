@@ -1,6 +1,9 @@
 import Navigation from '@/components/common/Navigation'
 import TestAccountList from '@/components/test-accounts/TestAccountList'
 
+// Force dynamic rendering - prevent static pre-render at build time
+export const dynamic = 'force-dynamic'
+
 /**
  * Test Accounts Page
  *

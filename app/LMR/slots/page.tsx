@@ -1,6 +1,9 @@
 // app/LMR/slots/page.tsx - Browse slots (Minimal MVP)
 'use client'
 
+// Force dynamic rendering - prevent static pre-render at build time
+export const dynamic = 'force-dynamic'
+
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Navigation from '@/components/common/Navigation'

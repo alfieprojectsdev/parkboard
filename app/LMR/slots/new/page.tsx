@@ -1,6 +1,9 @@
 // app/LMR/slots/new/page.tsx - Post Slot (Minimal MVP)
 'use client'
 
+// Force dynamic rendering - prevent static pre-render at build time
+export const dynamic = 'force-dynamic'
+
 import { useState, FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'

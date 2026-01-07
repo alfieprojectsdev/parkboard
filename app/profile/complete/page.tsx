@@ -1,6 +1,9 @@
 // app/profile/complete/page.tsx - Profile completion for OAuth users
 'use client'
 
+// Force dynamic rendering - prevent static pre-render at build time
+export const dynamic = 'force-dynamic'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
