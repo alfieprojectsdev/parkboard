@@ -2,13 +2,13 @@
 // ============================================================================
 // This middleware uses NextAuth.js v5 for authentication.
 // All routing logic (public routes, auth-only routes, redirects) is handled
-// by the `authorized` callback in lib/auth/auth.config.ts.
+// by the \`authorized\` callback in lib/auth/auth.config.ts.
 //
 // This file simply exports the NextAuth middleware function and configures
 // which routes it should run on via the matcher.
 // ============================================================================
 
-export { auth as middleware } from '@/lib/auth/auth'
+export { auth as middleware } from '@/lib/auth/auth.config'
 
 // ============================================================================
 // MATCHER CONFIGURATION
