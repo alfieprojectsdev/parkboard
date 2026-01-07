@@ -29,6 +29,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { checkRateLimit, getRateLimitInfo } from '@/lib/rate-limit'
 
 // ============================================================================
 // SIGNUP API ROUTE
@@ -115,7 +116,31 @@ export async function POST(req: NextRequest) {
     const { community_code, email, password, name, phone, unit_number } = body
 
     // ========================================================================
-    // STEP 0: Validate password strength
+    // STEP 0: Check rate limit (BEFORE any validation to prevent enumeration)
+    // ========================================================================
+    // P0-005: Rate limiting prevents brute-force attacks and community code enumeration
+    // Use email as identifier to limit attempts per email address
+    // Default: 5 attempts per 15 minutes
+    // ------------------------------------------------------------------------
+    if (!checkRateLimit(email)) {
+      const info = getRateLimitInfo(email)
+      const resetMinutes = info ? Math.ceil((info.resetAt - Date.now()) / 60000) : 15
+
+      return NextResponse.json(
+        { error: `Too many signup attempts. Please try again in ${resetMinutes} minutes.` },
+        {
+          status: 429,
+          headers: {
+            'X-RateLimit-Limit': '5',
+            'X-RateLimit-Remaining': '0',
+            'X-RateLimit-Reset': info?.resetAt.toString() || ''
+          }
+        }
+      )
+    }
+
+    // ========================================================================
+    // STEP 1: Validate password strength
     // ========================================================================
     // P1-002: Password validation (minimum 12 characters)
     // ------------------------------------------------------------------------
@@ -372,13 +397,26 @@ export async function POST(req: NextRequest) {
     // - Keeps response small and focused
     // - Less data to accidentally leak
     // ------------------------------------------------------------------------
-    return NextResponse.json({
-      success: true,
-      user: {
-        id: authData.user.id,
-        email: authData.user.email
+
+    // Add rate limit headers to successful response
+    const rateLimitInfo = getRateLimitInfo(email)
+    return NextResponse.json(
+      {
+        success: true,
+        user: {
+          id: authData.user.id,
+          email: authData.user.email
+        }
+      },
+      {
+        status: 200,
+        headers: {
+          'X-RateLimit-Limit': '5',
+          'X-RateLimit-Remaining': rateLimitInfo?.remaining.toString() || '4',
+          'X-RateLimit-Reset': rateLimitInfo?.resetAt.toString() || ''
+        }
       }
-    })
+    )
 
   } catch (error: unknown) {
     // 🎓 LEARNING: Catch-all error handler

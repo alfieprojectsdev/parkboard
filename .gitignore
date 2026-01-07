@@ -30,6 +30,8 @@ yarn-error.log*
 .env*.local
 .env.prod
 .env.dev
+.env.vercel.production
+docs/neondb_connectionstring.md
 
 # vercel
 .vercel
