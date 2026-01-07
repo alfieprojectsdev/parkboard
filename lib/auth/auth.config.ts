@@ -1,39 +1,22 @@
-// lib/auth/auth.config.ts
-// ============================================================================
-// NEXTAUTH.JS v5 - EDGE-COMPATIBLE CONFIGURATION
-// ============================================================================
-// This file contains the edge-compatible NextAuth.js configuration.
-// It's used by middleware for auth checks and should NOT contain any
-// database calls or Node.js-only dependencies.
-//
-// Why separate from auth.ts?
-// - Middleware runs on the Edge runtime (not full Node.js)
-// - Edge runtime has limited API access (no direct DB connections)
-// - This config defines routes and authorization logic only
-// - auth.ts imports this and adds providers/database logic
-// ============================================================================
-
 import type { NextAuthConfig } from 'next-auth'
 
 // ============================================================================
 // PUBLIC ROUTES - No authentication required
 // ============================================================================
-// These routes are accessible to everyone, even without logging in
 export const PUBLIC_ROUTES = [
-  '/',                    // Landing page
-  '/login',              // Login page
-  '/register',           // Registration page
-  '/auth/callback',      // OAuth callback
-  '/LMR',                // LMR community landing page
-  '/LMR/',               // LMR community landing page (trailing slash)
-  '/LMR/slots',          // Browse LMR slots (no auth required)
-  '/LMR/slots/',         // Browse LMR slots (trailing slash)
+  '/',
+  '/login',
+  '/register',
+  '/auth/callback',
+  '/LMR',
+  '/LMR/',
+  '/LMR/slots',
+  '/LMR/slots/',
 ]
 
 // ============================================================================
 // AUTH-ONLY ROUTES - Only accessible when NOT logged in
 // ============================================================================
-// If user is already authenticated, they should NOT access these
 export const AUTH_ONLY_ROUTES = [
   '/login',
   '/register',
@@ -42,9 +25,6 @@ export const AUTH_ONLY_ROUTES = [
 // ============================================================================
 // EDGE-COMPATIBLE AUTH CONFIG
 // ============================================================================
-// This configuration can safely run in Edge runtime (middleware)
-// No database calls, no Node.js-only APIs
-
 export const authConfig: NextAuthConfig = {
   // Custom pages - redirect to our custom login page
   pages: {
@@ -64,7 +44,7 @@ export const authConfig: NextAuthConfig = {
 
       // RULE 0: Skip middleware for API routes
       // API routes handle their own authentication and return JSON
-      // Redirecting them would break the API response
+      // Redirecting them would break API response
       if (pathname.startsWith('/api/')) {
         return true
       }
@@ -90,14 +70,17 @@ export const authConfig: NextAuthConfig = {
         return Response.redirect(new URL('/', nextUrl.origin))
       }
 
-      // Allow the request to proceed
+      // Allow to request to proceed
       return true
     },
   },
 
   // Empty providers array - providers are added in auth.ts
-  // This ensures the config is edge-compatible (no DB calls here)
+  // This ensures that config is edge-compatible (no DB calls here)
   providers: [],
 }
+
+// Export auth for middleware use (edge-compatible re-export of full auth.ts)
+export { auth } from './auth'
 
 export default authConfig
