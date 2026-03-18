@@ -1,8 +1,9 @@
 # Session Summary — March 18, 2026
 
-**Status:** Analysis Complete — No Code Changes
+**Status:** Complete — Analysis + Housekeeping
 **Branch:** `main`
-**Session Focus:** Deep codebase analysis + authentication flow mapping
+**Commits:** `9749613` (docs reorganization)
+**Session Focus:** Deep codebase analysis, auth flow mapping, docs cleanup
 **Interruption:** LightDM crash mid-session; state fully restored from `/home/finch/repos/backup/claude-1000/` (session `f5b61a2f-4c97-4d1c-b828-41a6dd463554`)
 
 ---
@@ -12,6 +13,7 @@
 1. Run `/init` — review CLAUDE.md and suggest improvements
 2. Run `codebase-analysis` skill — extract data models, hybrid pricing logic, multi-tenant requirements
 3. Run `deepthink` skill — map the Supabase/NextAuth auth flow and its troubleshooting history
+4. Housekeeping — reorganize docs/ and surface any credentials stored in markdown files
 
 ---
 
@@ -144,8 +146,45 @@ Supabase RLS's `auth.uid()` is resolved by Supabase's PostgREST gateway, which v
 
 ---
 
+## 4. Docs Housekeeping (commit `9749613`)
+
+### Credentials Found and Addressed
+- `docs/neondb_connectionstring.md` — contained live Neon DB password (`npg_Hp6ndal4GoBs`) in plaintext, **committed to git history** (`d246a8a`). File deleted. Credentials are already in gitignored `.env.dev` / `.env.prod`.
+- `docs/deployment/DEPLOYMENT_VERCEL_NEON_2025.md:628` — contains a `NEXTAUTH_SECRET` value different from `.env.prod`. Unknown if still active — flagged for review.
+- `.env.prod` has `service_role=...` (wrong variable name; code expects `SUPABASE_SERVICE_ROLE_KEY`).
+
+### New docs/ Structure
+```
+docs/
+├── architecture/   — API_DESIGN, SECURITY_ARCHITECTURE, AUTHENTICATION_ARCHITECTURE_ANALYSIS, MULTI_TENANCY_IMPROVEMENTS
+├── database/       — DATABASE, DATAMODEL_*, HYBRID_PRICING_*, NeonDB notes
+├── deployment/     — Vercel/Neon guides, deploy scripts, community rotation, pilot monitoring
+├── security/       — P0 rate limiting, community codes, security reviews
+├── testing/        — E2E plans, SQL guide, test users, telemetry spec
+├── sessions/       — SESSION_SUMMARY files
+├── archive/        — ~50 superseded/dated files (moved, not deleted)
+├── adr/            — unchanged
+└── templates/      — unchanged
+```
+
+### Deleted (14 files)
+- `docs/neondb_connectionstring.md` — credentials
+- `terminal_snapshot*.txt` (4 files) — debug artifacts
+- `DATAMODEL_DELIVERABLES.txt`, `DATAMODEL_SUMMARY.txt` — internal analysis artifacts
+- `docs/parkboard_chatlogs.md`, `docs/Local meal support for developers.md` — noise
+- `docs/scratchpad-authwrapper-fix-20251018.md`, `docs/pseudocode_20251007-090752.md` — ephemeral
+- `docs/DELETION_LIST_20251009.md`, `docs/SCREENSHOTS.md` — stale
+
+### Secrets Storage Recommendation
+Current `.env.dev` / `.env.prod` pattern is correct — both gitignored. Next step up for production: use Vercel's encrypted environment variables dashboard (secrets never touch filesystem). Priority action: rotate the Neon password (in git history) and verify the NEXTAUTH_SECRET in the deployment doc.
+
+---
+
 ## Open Action Items (Not Completed This Session)
 
+- [ ] **Rotate Neon DB password** — `npg_Hp6ndal4GoBs` is in git history (`d246a8a`); consider `git filter-repo` to scrub history
+- [ ] **Review NEXTAUTH_SECRET** in `docs/deployment/DEPLOYMENT_VERCEL_NEON_2025.md:628` — rotate if still active
+- [ ] **Fix `.env.prod`** — rename `service_role` → `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] Apply CLAUDE.md improvements (see section 1 above)
 - [ ] Add `communityCode` to `AuthWrapper.tsx` `AuthUser` interface OR document that `useSession()` must be used directly
 - [ ] Verify `npm run build` produces no edge runtime warnings for `auth.config.ts:84` re-export chain
