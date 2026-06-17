@@ -126,8 +126,13 @@ CREATE TRIGGER trigger_slots_updated_at
 CREATE OR REPLACE FUNCTION expire_old_slots()
 RETURNS trigger AS $$
 BEGIN
+  -- Recursion guard: the UPDATE below re-fires this AFTER trigger; skip the
+  -- redundant nested pass (CodeRabbit, PR #1).
+  IF pg_trigger_depth() > 1 THEN
+    RETURN NULL;
+  END IF;
   UPDATE parking_slots
-    SET status = 'expired', updated_at = NOW()
+    SET status = 'expired'  -- updated_at maintained by trigger_slots_updated_at
   WHERE available_until < NOW() AND status = 'available';
   RETURN NULL;
 END;
