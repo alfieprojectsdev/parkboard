@@ -4,6 +4,20 @@ _Generated 2026-06-17 via planner skill (architect design, validation PASS). Sou
 
 > Status: build **paused** pending owner secret-rotation. Code work has no blocker; only deploy does.
 
+> **This document is the v2 roadmap.** It is the single source of truth for milestones, decisions, invariants, and owner-blocked prerequisites, and it survives context clears. Drive execution from here, one milestone = one PR (CodeRabbit-reviewed). Progress: **M-001 ✅ done (PR #2)**; M-002→M-007 pending.
+
+### Execution strategy per milestone
+
+How much process each milestone gets, judged by ambiguity + invariant risk (ref: `.claude/README.md` — "not every task needs the full planning workflow"). Each milestone header below carries its verdict.
+
+| Tier | Meaning |
+|------|---------|
+| **Full planner** | Own sub-plan in `plans/` + review cycle + delegated execution. Reserved for genuine design choices / security invariants. |
+| **Light planning** | Short design pass (or `frontend-design` skill), not the full machine. |
+| **Direct execute** | Implement inline, then verify (tsc/build/test) + CodeRabbit per PR — the M-001 approach. |
+
+Summary: **M-003 = full planner** (the one with real privacy/ownership stakes). **M-004 = light planning** (UI/UX). **M-002, M-005, M-006, M-007 = direct execute** (+ hard verify gate on M-006).
+
 ## Overview
 
 ### Problem
@@ -79,6 +93,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 
 ### M-001 — Foundation: Neon db client, v2 schema, auth de-tenanting
 
+> **Execution: Direct execute — ✅ DONE (PR #2).** Mechanical, well-specified. Built inline, verified (source tsc clean, `next build` passes), CodeRabbit-gated. Scope note: `communityCode` type removal deferred to M-006 (consumers still live); `db/schema_v2.sql` apply stays owner-blocked.
+
 **Files:** lib/db/client.ts; db/schema_v2.sql; lib/auth/auth.ts; lib/auth/auth.config.ts; scripts/run-migrations.ts; package.json
 
 **Requirements:**
@@ -107,6 +123,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 - unit:jest:lib/db/client connects and queries Neon;unit:jest:auth.authorize accepts email+password and rejects bad password without communityCode
 
 ### M-002 — Auth UI + signup/profile API on pg
+
+> **Execution: Direct execute + quality-review gate.** Security-sensitive (bcrypt, enumeration-safe errors, phone-or-viber, the `unit_number` NOT NULL fix) but unambiguous — the plan already specs it tightly and QR caught the INSERT bug. No planner; run a `quality-reviewer` pass on the diff before the PR.
 
 **Files:** app/api/auth/signup/route.ts; app/(auth)/login/page.tsx; app/(auth)/register/page.tsx; app/api/profile/route.ts; lib/validation/api-schemas.ts
 
@@ -137,6 +155,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 
 ### M-003 — Slots API on pg: CRUD, ownership, reveal-contact, mark-taken
 
+> **Execution: FULL PLANNER WORKFLOW.** The security-critical heart of v2. The auth-gated `GET /api/slots/[id]/contact` *is* the product's privacy boundary (contact must never leak to anon / list / detail — R-004), plus app-side ownership enforcement (403) and soft-delete semantics. Genuine design choices + hard invariants = exactly where plan→review→delegated-execute pays. Run the `planner` skill scoped to M-003 → sub-plan in `plans/` → execute.
+
 **Files:** app/api/slots/route.ts; app/api/slots/[id]/route.ts; app/api/slots/[id]/contact/route.ts
 
 **Requirements:**
@@ -161,6 +181,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 - unit:jest:GET list omits contact fields;unit:jest:POST sets owner_id from session;unit:jest:PATCH/DELETE non-owner 403;unit:jest:DELETE sets status=expired;unit:jest:contact route 401 anon and 200 authed;e2e:playwright:reveal-contact requires login and shows phone+viber
 
 ### M-004 — Slot pages: fetch() API, reveal-contact + mark-taken UI
+
+> **Execution: Light planning (or `frontend-design` skill).** Real UX design exists — reveal-contact interaction, loading/error states, owner-only controls — and frontend is the least-specified surface. Not full planner; a short design pass on the reveal/mark-taken UX before implementing. Client invariant: never request contact pre-auth.
 
 **Files:** app/LMR/slots/page.tsx; app/LMR/slots/new/page.tsx; app/LMR/slots/[slotId]/page.tsx; app/LMR/slots/[slotId]/edit/page.tsx
 
@@ -189,6 +211,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 
 ### M-005 — Navigation + landing on NextAuth; strip marketing
 
+> **Execution: Direct execute.** Mechanical — swap Supabase auth → `useSession`/`signOut`, delete testimonials/pricing sections. Low ambiguity, low risk. Implement inline + build verify + CodeRabbit.
+
 **Files:** components/common/Navigation.tsx; components/landing/LandingNav.tsx; app/page.tsx
 
 **Requirements:**
@@ -211,6 +235,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 - e2e:playwright:sign-out from nav clears session and returns to landing;unit:jest:Navigation renders authed vs anon from useSession
 
 ### M-006 — Delete dead surface: bookings, OAuth, tenant-access, Supabase libs
+
+> **Execution: Direct execute + HARD VERIFY gate.** Low-concept but cross-cutting — touches many files, high orphaned-import risk. This is where the vestigial `communityCode` type, the `@supabase/*` deps, and `lib/supabase/*` finally die together (the M-001 dep-removal was deliberately deferred here so deps + imports go in one atomic, build-clean step). Gate: grep proves zero `lib/supabase` / `getSessionWithCommunity` / `community_code` refs remain, and `npm run build` passes from a clean `npm ci`.
 
 **Files:** app/api/bookings/route.ts; app/api/bookings/[id]/route.ts; app/LMR/bookings/page.tsx; app/auth/callback/route.ts; app/profile/complete/page.tsx; lib/auth/tenant-access.ts; lib/supabase/client.ts; lib/supabase/server.ts; lib/supabase/admin.ts; app/LMR/page.tsx; app/test-accounts/page.tsx; components/test-accounts/TestAccountList.tsx; components/test-accounts/TestAccountCard.tsx
 
@@ -247,6 +273,8 @@ ParkBoard v2 is a single-condo (LMR) parking contact board on Neon Postgres. Aut
 - unit:jest:build-time import check (no lib/supabase no tenant-access);e2e:playwright:smoke nav has no bookings entry and app loads
 
 ### M-007 — Test suite cleanup for v2 surface
+
+> **Execution: Direct execute + quality-review.** Moderate — what to assert follows from M-002/M-003 behavior, but the tests *encode* the leak/ownership invariants (contact never in list/detail, non-owner 403, DELETE→expired), so a `quality-reviewer` pass on coverage is worth it. Also resolves the pre-existing `__tests__`/`e2e` tsc errors carried since M-001.
 
 **Files:** __tests__/api/slots; __tests__/api/auth; e2e/user-journeys.spec.ts
 
