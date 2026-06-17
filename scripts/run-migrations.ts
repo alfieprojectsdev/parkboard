@@ -3,6 +3,12 @@
 /**
  * DATABASE MIGRATION RUNNER
  *
+ * ⚠️ LEGACY (v1). The db/migrations/ chain belongs to the old multi-tenant
+ * marketplace schema and is NOT the source of truth for v2. The v2 contact
+ * board uses a single greenfield schema applied directly:
+ *     psql "$DATABASE_URL" -f db/schema_v2.sql   (against a fresh Neon branch)
+ * This runner is kept only for reference/history; do not run it for v2.
+ *
  * TypeScript-based migration executor for Neon PostgreSQL database.
  * Executes idempotent migrations from db/migrations/ directory.
  *

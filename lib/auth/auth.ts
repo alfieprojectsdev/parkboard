@@ -14,35 +14,10 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { Pool } from 'pg'
 
 import { authConfig } from './auth.config'
+import { query } from '@/lib/db/client'
 import { checkRateLimit } from '@/lib/rate-limit'
-
-// ============================================================================
-// DATABASE CONNECTION
-// ============================================================================
-// Singleton Pool for Neon database connection
-// Uses DATABASE_URL environment variable (same as NEON_CONNECTION_STRING)
-
-let pool: Pool | null = null
-
-function getPool(): Pool {
-  if (!pool) {
-    const connectionString = process.env.DATABASE_URL || process.env.NEON_CONNECTION_STRING
-
-    if (!connectionString) {
-      throw new Error('DATABASE_URL or NEON_CONNECTION_STRING environment variable is required')
-    }
-
-    pool = new Pool({
-      connectionString,
-      ssl: { rejectUnauthorized: false }, // Required for Neon
-      max: 10, // Connection pool size
-    })
-  }
-  return pool
-}
 
 // ============================================================================
 // USER TYPE
@@ -56,7 +31,6 @@ interface UserProfile {
   phone: string | null
   unit_number: string | null
   password_hash: string
-  community_code: string
 }
 
 // ============================================================================
@@ -86,7 +60,6 @@ export const {
     Credentials({
       name: 'credentials',
       credentials: {
-        communityCode: { label: 'Community Code', type: 'text' },
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
@@ -94,12 +67,11 @@ export const {
       async authorize(credentials) {
         try {
           // Validate credentials
-          if (!credentials?.communityCode || !credentials?.email || !credentials?.password) {
+          if (!credentials?.email || !credentials?.password) {
             console.error('[Auth] Missing credentials')
             return null
           }
 
-          const communityCode = credentials.communityCode as string
           const email = credentials.email as string
           const password = credentials.password as string
 
@@ -115,18 +87,17 @@ export const {
             return null // NextAuth interprets null as failed login
           }
 
-          // Query user_profiles table for user with matching email AND community_code
-          const db = getPool()
-          const result = await db.query<UserProfile>(
-            `SELECT id, email, name, phone, unit_number, password_hash, community_code
+          // Look up the user by email (single community in v2 — no community_code)
+          const result = await query<UserProfile>(
+            `SELECT id, email, name, phone, unit_number, password_hash
              FROM user_profiles
-             WHERE email = $1 AND community_code = $2`,
-            [email, communityCode]
+             WHERE email = $1`,
+            [email]
           )
 
           // Check if user exists
           if (result.rows.length === 0) {
-            console.error('[Auth] Invalid credentials or community code')
+            console.error('[Auth] Invalid credentials')
             return null
           }
 
@@ -136,7 +107,7 @@ export const {
           const passwordValid = await bcrypt.compare(password, user.password_hash)
 
           if (!passwordValid) {
-            console.error('[Auth] Invalid credentials or community code')
+            console.error('[Auth] Invalid credentials')
             return null
           }
 
@@ -148,7 +119,6 @@ export const {
             name: user.name,
             phone: user.phone,
             unitNumber: user.unit_number,
-            communityCode: user.community_code,
           }
         } catch (error) {
           console.error('[Auth] Authorization error:', error)
@@ -156,15 +126,6 @@ export const {
         }
       },
     }),
-
-    // ========================================================================
-    // GOOGLE PROVIDER (Optional - Add later)
-    // ========================================================================
-    // TODO: Uncomment and configure when ready to add Google OAuth
-    // Google({
-    //   clientId: process.env.GOOGLE_CLIENT_ID!,
-    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    // }),
   ],
 
   // ========================================================================
@@ -193,9 +154,6 @@ export const {
         if ('unitNumber' in user) {
           token.unitNumber = user.unitNumber as string | null
         }
-        if ('communityCode' in user) {
-          token.communityCode = user.communityCode as string
-        }
       }
       return token
     },
@@ -213,53 +171,8 @@ export const {
         // Expose custom fields to session
         session.user.phone = token.phone as string | null
         session.user.unitNumber = token.unitNumber as string | null
-        session.user.communityCode = token.communityCode as string
       }
       return session
-    },
-
-    // ========================================================================
-    // SIGN-IN CALLBACK
-    // ========================================================================
-    // Called on every sign-in attempt
-    // Use this for OAuth users to check profile completion
-    async signIn({ user, account }) {
-      // For credentials provider, just allow sign-in
-      if (account?.provider === 'credentials') {
-        return true
-      }
-
-      // For OAuth providers (Google, etc.), check if user_profiles entry exists
-      // If profile is incomplete, redirect to profile completion page
-      if (account?.provider === 'google') {
-        try {
-          const db = getPool()
-          const result = await db.query(
-            `SELECT id, phone, unit_number FROM user_profiles WHERE id = $1`,
-            [user.id]
-          )
-
-          // If no profile exists or profile is incomplete, redirect to complete
-          if (result.rows.length === 0) {
-            // User doesn't have a profile yet - allow sign-in
-            // The profile will be created on first login
-            // Then redirect to profile completion
-            return '/profile/complete'
-          }
-
-          const profile = result.rows[0]
-          // Check if required fields are missing
-          if (!profile.phone || !profile.unit_number) {
-            return '/profile/complete'
-          }
-        } catch (error) {
-          console.error('[Auth] Error checking OAuth user profile:', error)
-          // Allow sign-in even if profile check fails
-          return true
-        }
-      }
-
-      return true
     },
   },
 
@@ -275,10 +188,17 @@ export const {
 // ============================================================================
 // Extend NextAuth types to include custom user fields
 
+// NOTE: `communityCode` is no longer populated anywhere in the auth runtime
+// (dropped from the credentials provider, the user lookup, and the jwt/session
+// callbacks in M-001). The optional type field is retained ONLY so the not-yet
+// migrated consumers (lib/auth/tenant-access.ts, app/(auth)/login/page.tsx, the
+// Supabase-backed API routes) still type-check. It is removed for good in M-006
+// once those consumers are deleted/rewritten. At runtime it is always undefined.
 declare module 'next-auth' {
   interface User {
     phone?: string | null
     unitNumber?: string | null
+    /** @deprecated vestigial — removed in M-006. Always undefined at runtime. */
     communityCode?: string
   }
 
@@ -289,7 +209,8 @@ declare module 'next-auth' {
       email: string
       phone: string | null
       unitNumber: string | null
-      communityCode: string
+      /** @deprecated vestigial — removed in M-006. Always undefined at runtime. */
+      communityCode?: string
     }
   }
 }
@@ -299,6 +220,7 @@ declare module '@auth/core/jwt' {
     userId: string
     phone?: string | null
     unitNumber?: string | null
+    /** @deprecated vestigial — removed in M-006. Always undefined at runtime. */
     communityCode?: string
   }
 }
