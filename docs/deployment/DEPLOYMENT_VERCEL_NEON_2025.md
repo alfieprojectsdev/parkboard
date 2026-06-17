@@ -625,7 +625,7 @@ openssl rand -base64 32
 # kJ9x2vR8mN4pQ7wA3bC5dE6fG8hI9jK0lM1nO2pQ3rS4t=
 
 # Copy this value to Vercel environment variable
-NEXTAUTH_SECRET=kJ9x2vR8mN4pQ7wA3bC5dE6fG8hI9jK0lM1nO2pQ3rS4t=
+NEXTAUTH_SECRET=REDACTED_ROTATE_ME
 ```
 
 **⚠️ SECURITY:** Never commit this to git. Treat like a password.

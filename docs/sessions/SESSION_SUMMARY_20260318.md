@@ -149,7 +149,7 @@ Supabase RLS's `auth.uid()` is resolved by Supabase's PostgREST gateway, which v
 ## 4. Docs Housekeeping (commit `9749613`)
 
 ### Credentials Found and Addressed
-- `docs/neondb_connectionstring.md` — contained live Neon DB password (`npg_Hp6ndal4GoBs`) in plaintext, **committed to git history** (`d246a8a`). File deleted. Credentials are already in gitignored `.env.dev` / `.env.prod`.
+- `docs/neondb_connectionstring.md` — contained live Neon DB password (`REDACTED_ROTATE_ME`) in plaintext, **committed to git history** (`d246a8a`). File deleted. Credentials are already in gitignored `.env.dev` / `.env.prod`.
 - `docs/deployment/DEPLOYMENT_VERCEL_NEON_2025.md:628` — contains a `NEXTAUTH_SECRET` value different from `.env.prod`. Unknown if still active — flagged for review.
 - `.env.prod` has `service_role=...` (wrong variable name; code expects `SUPABASE_SERVICE_ROLE_KEY`).
 
@@ -182,7 +182,7 @@ Current `.env.dev` / `.env.prod` pattern is correct — both gitignored. Next st
 
 ## Open Action Items (Not Completed This Session)
 
-- [ ] **Rotate Neon DB password** — `npg_Hp6ndal4GoBs` is in git history (`d246a8a`); consider `git filter-repo` to scrub history
+- [ ] **Rotate Neon DB password** — `REDACTED_ROTATE_ME` is in git history (`d246a8a`); consider `git filter-repo` to scrub history
 - [ ] **Review NEXTAUTH_SECRET** in `docs/deployment/DEPLOYMENT_VERCEL_NEON_2025.md:628` — rotate if still active
 - [ ] **Fix `.env.prod`** — rename `service_role` → `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] Apply CLAUDE.md improvements (see section 1 above)

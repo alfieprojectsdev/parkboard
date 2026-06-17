@@ -360,7 +360,7 @@ E2E tests require actual Supabase credentials:
 # .env.local (must be real and working)
 NEXT_PUBLIC_SUPABASE_URL=https://cgbkknefvggnhkvmuwsa.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGc...
+SUPABASE_SERVICE_ROLE_KEY=REDACTED_ROTATE_ME
 ```
 
 ---
