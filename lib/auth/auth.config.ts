@@ -66,7 +66,7 @@ export const authConfig: NextAuthConfig = {
       const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some((route) => pathname === route)
 
       if (isAuthenticated && isAuthOnlyRoute) {
-        // Redirect to community selector (multi-tenant: no default community)
+        // Single community (v2): send logged-in users to the home page
         return Response.redirect(new URL('/', nextUrl.origin))
       }
 
