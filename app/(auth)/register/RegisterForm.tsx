@@ -14,7 +14,7 @@ const FIELDS = [
   { id: 'email', label: 'Email', type: 'email', autoComplete: 'email', required: true },
   { id: 'password', label: 'Password (12+ characters)', type: 'password', autoComplete: 'new-password', required: true },
   { id: 'confirm', label: 'Confirm password', type: 'password', autoComplete: 'new-password', required: true },
-  { id: 'phone', label: 'Phone', type: 'tel', autoComplete: 'tel', required: false, placeholder: '0917 123 4567' },
+  { id: 'phone', label: 'Phone', type: 'tel', autoComplete: 'tel', required: false, placeholder: '09XX XXX XXXX' },
   { id: 'contact_viber', label: 'Viber number or name', type: 'text', autoComplete: 'off', required: false },
 ] as const
 

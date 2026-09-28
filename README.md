@@ -8,6 +8,23 @@ rest between themselves. The owner marks the slot taken or removes it.
 There are no bookings, prices, payments or multiple communities; those were
 cut in the v2 rewrite (see [docs/V2_CONTACT_BOARD_PLAN_20260617.md](docs/V2_CONTACT_BOARD_PLAN_20260617.md)).
 
+![Browsing free slots as a logged-in resident, with one owner's contact revealed](docs/screenshots/v2/browse-with-contact.png)
+
+On a phone: a slot as a logged-out visitor sees it (no contact), the same
+slot as its owner sees it, posting a slot, and registering with the
+residents' code.
+
+<p>
+  <img src="docs/screenshots/v2/slot-detail-logged-out.png" width="200" alt="Slot detail for a logged-out visitor: contact hidden behind login">
+  <img src="docs/screenshots/v2/slot-detail-owner.png" width="200" alt="Owner's view with mark taken, edit and remove">
+  <img src="docs/screenshots/v2/post-a-slot.png" width="200" alt="Post a slot form">
+  <img src="docs/screenshots/v2/register-residents-code.png" width="200" alt="Registration asking for the residents' code">
+</p>
+
+Screenshots are from a local run on 2026-09-29 with made-up residents.
+(`docs/screenshots/` also holds the v1 marketplace screenshots from October
+2025.)
+
 ## Privacy model
 
 - Anyone can see the list of free slots (location and times only).
