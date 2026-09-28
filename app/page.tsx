@@ -1,55 +1,41 @@
-// app/page.tsx - Landing Page (MVP)
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { auth } from '@/lib/auth/auth'
 import { Button } from '@/components/ui/button'
-import AdBanner from '@/components/advertising/AdBanner'
+import Navigation from '@/components/common/Navigation'
 
-/**
- * Landing Page - Minimal MVP Version
- *
- * - Community-focused messaging for LMR residents
- * - Two clear actions: Browse slots or Post slot
- */
 export default async function Home() {
-  const supabase = createClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  const session = await auth()
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">LMR Parking</h1>
-          <p className="text-gray-600">Lumiere Residences community parking board</p>
-        </div>
-      </header>
-
-      <AdBanner placement="header" />
-
-      <main className="max-w-2xl mx-auto px-4 py-16 text-center">
-        <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-          Stop the Viber chaos. Post slots here instead.
-        </h2>
-        <p className="text-gray-600 mb-8">
-          Simple parking slot sharing for LMR neighbors.
+      <Navigation />
+      <main className="mx-auto max-w-2xl px-4 py-16 text-center">
+        <h1 className="mb-3 text-3xl font-bold text-gray-900">Lumiere Residences parking board</h1>
+        <p className="mb-8 text-gray-700">
+          Post your parking slot when you&apos;re away. Neighbours see when it&apos;s free, get your
+          Viber or phone, and you sort out the rest between you.
         </p>
 
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-wrap justify-center gap-3">
           <Link href="/LMR/slots">
-            <Button size="lg">Browse Available Slots</Button>
+            <Button size="lg">Browse free slots</Button>
           </Link>
-          {session && (
-            <Link href="/LMR/slots/new">
-              <Button size="lg" variant="outline">Post My Slot</Button>
-            </Link>
-          )}
+          <Link href={session ? '/LMR/slots/new' : '/register'}>
+            <Button size="lg" variant="outline">
+              {session ? 'Post my slot' : 'Register to post'}
+            </Button>
+          </Link>
         </div>
 
-        <AdBanner placement="inline" />
+        <ol className="mx-auto mt-12 max-w-md space-y-2 text-left text-sm text-gray-700">
+          <li>1. Post the level, tower and the hours your slot is free.</li>
+          <li>2. Logged-in neighbours tap &ldquo;Show contact&rdquo; to get your Viber or phone.</li>
+          <li>3. Mark it taken once someone has it, or remove it.</li>
+        </ol>
 
-        <div className="mt-16 text-sm text-gray-500">
-          <p>Built for LMR residents, by an LMR resident.</p>
-          <p className="mt-2">Questions? Email alfieprojects.dev@gmail.com</p>
-        </div>
+        <p className="mt-12 text-xs text-gray-500">
+          Contact details are shown only to logged-in residents, one slot at a time.
+        </p>
       </main>
     </div>
   )
