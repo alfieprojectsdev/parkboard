@@ -164,6 +164,36 @@ keeps Neon's compute awake and uses up the free 100 compute-hours a month.
 `.env.prod`. After rotating, update or delete them. The v2 app needs only
 the variables in `.env.example`.
 
+## Changing the schema after launch
+
+`npm test` runs every migration on an empty database, twice, and
+`test/migrate.test.ts` checks the runner itself. None of that sees
+production's rows, and some migrations only fail on real data: a new unique
+index fails if two rows already share the value, and a new `NOT NULL` column
+without a default fails if the table has rows. On Vercel that failure stops
+the build (the old deployment stays up), so you would find out at deploy
+time.
+
+Before merging a pull request that adds a file to `db/migrations/`, try it on
+a copy of production:
+
+1. Neon Console → project → Branches → Create branch, with the production
+   branch as parent, at the current point in time. Branches are
+   copy-on-write, so it is ready in seconds and production is untouched.
+2. Copy the new branch's pooled connection string and run:
+   ```bash
+   DATABASE_URL="<branch string>" npm run db:migrate
+   ```
+   Each pending file should print `ran`. A `FAILED` line names the file and
+   the Postgres error; fix the migration, or the rows it trips over, before
+   merging.
+3. Delete the branch, so copies of residents' data don't pile up.
+
+Migrations run before the new code goes live, and if `next build` fails
+after them, the old code keeps running on the new schema. So add tables and
+columns freely, but drop or rename something only in a later migration, once
+no deployed code uses it.
+
 ## Tradeoffs
 
 - Registration is open unless `SIGNUP_INVITE_CODE` is set. With it, anyone
