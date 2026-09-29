@@ -66,7 +66,9 @@ npm run lint
 npm run build
 ```
 
-GitHub Actions runs all four on every push and pull request.
+GitHub Actions is turned off for this repo, so run all four locally before
+merging. `.github/workflows/ci.yml` runs them again if Actions is turned back
+on.
 
 ## Operations
 
