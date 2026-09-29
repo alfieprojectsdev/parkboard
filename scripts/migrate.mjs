@@ -3,10 +3,18 @@
 //
 //   DATABASE_URL=postgres://... npm run db:migrate            apply pending
 //   DATABASE_URL=postgres://... npm run db:migrate -- --status
+//   node scripts/migrate.mjs --vercel                     used by `npm run build`
+//
+// With --vercel it only runs when Vercel is building Production
+// (VERCEL_ENV=production), so merging to main applies pending migrations
+// before the new code goes live. If a migration fails, the build fails and
+// the previous deployment stays up. Local, CI and preview builds skip it, so
+// a pull request can never change the production database.
 //
 // Refuses to run against a database that still has the v1 marketplace
 // tables: point DATABASE_URL at a fresh Neon branch, or run
-// db/reset_v1_tables.sql first if the old data is disposable.
+// db/reset_v1_tables.sql first if the old data is disposable. On Vercel that
+// refusal fails the build, so v2 never goes live against the v1 schema.
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +22,11 @@ import pg from 'pg';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'db', 'migrations');
 const statusOnly = process.argv.includes('--status');
+
+if (process.argv.includes('--vercel') && process.env.VERCEL_ENV !== 'production') {
+  console.log('migrate: skipped (not a Vercel production build)');
+  process.exit(0);
+}
 
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is not set.');

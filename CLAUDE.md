@@ -60,7 +60,9 @@ NextAuth v5 beta (credentials + JWT), `pg` against Neon, zod 4, Vitest.
   in Postgres (in-memory counters don't survive serverless cold starts).
 - Route params are user input: check UUIDs with `isUuid()` before querying.
 - Schema changes: add `db/migrations/00N_name.sql`, written to be re-runnable
-  (`IF NOT EXISTS`, `DROP ... IF EXISTS`). Tests apply every migration to
+  (`IF NOT EXISTS`, `DROP ... IF EXISTS`). Production builds apply them:
+  `npm run build` runs `scripts/migrate.mjs --vercel` first, which only acts
+  when `VERCEL_ENV=production`. Tests apply every migration to
   PGlite and re-run them.
 - Client pages fetch the API routes; never talk to the database from the
   browser.

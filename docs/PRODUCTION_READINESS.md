@@ -36,7 +36,8 @@ leaves only dashboard work for the owner.
 - Data: `db/migrations/001_contact_board.sql` (the v2 schema from
   `schema_v2.sql` without its DROPs, plus a database-level "phone or Viber"
   check) and `002_rate_limits_and_feedback.sql`. `npm run db:migrate` applies
-  them and refuses to run against a database that still has v1 tables. The
+  them and refuses to run against a database that still has v1 tables; the
+  production build runs it too (runbook step 2). The
   DROPs live in `db/reset_v1_tables.sql` for the case where an old database
   is reused.
 - API: `/api/auth/signup`, `/api/profile`, `/api/slots` (list; `?mine=1`;
@@ -98,10 +99,15 @@ Also look at GitHub → repo → Security → Secret scanning alerts.
 
 ### 2. Database
 
-Create a new Neon branch for v2 (or a new project), copy its pooled
-connection string, then:
+Create a new Neon branch for v2 (or a new project) and copy its pooled
+connection string. You don't need to migrate it by hand: `npm run build`
+runs `scripts/migrate.mjs --vercel` first, which applies pending migrations
+when Vercel builds Production (`VERCEL_ENV=production`) and skips them in
+preview and local builds. To see what a database has, or to migrate it
+yourself:
 
 ```bash
+DATABASE_URL="<pooled string>" npm run db:migrate -- --status
 DATABASE_URL="<pooled string>" npm run db:migrate
 ```
 
@@ -129,7 +135,13 @@ Project → Settings → Environment Variables (Production and Preview):
   variable, and `NEXTAUTH_URL` if it still says `parkboard.app` (the app
   trusts Vercel's host header)
 
-Then merge the PR; Vercel deploys `main`.
+Check Settings → Build and Deployment: the Build Command must be the default
+(`npm run build`), because that is what applies migrations.
+
+Then merge the PR. The production build migrates the database, then Vercel
+deploys `main`. If `DATABASE_URL` still points at the v1 database, the
+build fails with "This database still has the v1 marketplace schema" and the
+current deployment stays up; fix the variable and redeploy.
 
 ### 5. Smoke test on a phone
 
@@ -169,6 +181,9 @@ the variables in `.env.example`.
   provider and a verified sending domain.
 - Rate limits fail open: if the database errors during the check, the
   request goes through rather than locking everyone out.
+- Preview deployments don't migrate, because they may share the production
+  database. A preview of a branch that adds a migration runs against the old
+  schema until it is merged.
 - Slot times are entered in the resident's own time zone (the building is in
   Manila) and stored as UTC.
 - Vercel Hobby terms say "non-commercial, personal use"; a free community
