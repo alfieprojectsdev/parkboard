@@ -4,18 +4,14 @@ import { FormEvent, Suspense, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
+import { safeRedirect } from '@/lib/safe-redirect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-/** Only same-site paths; blocks ?redirect=https://evil.example and //evil.example. */
-function safeRedirect(value: string | null): string {
-  return value && value.startsWith('/') && !value.startsWith('//') ? value : '/LMR/slots'
-}
-
 function LoginForm() {
   const router = useRouter()
-  const redirect = safeRedirect(useSearchParams().get('redirect'))
+  const redirectParam = useSearchParams().get('redirect')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +29,7 @@ function LoginForm() {
       setError('That email and password did not match. After 5 tries, wait 15 minutes.')
       return
     }
-    router.push(redirect)
+    router.push(safeRedirect(redirectParam, window.location.origin))
     router.refresh()
   }
 

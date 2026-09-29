@@ -29,11 +29,16 @@ export default function ProfilePage() {
   const [passwords, setPasswords] = useState({ current_password: '', new_password: '' })
   const [detailsMessage, setDetailsMessage] = useState<Message>(null)
   const [passwordMessage, setPasswordMessage] = useState<Message>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/profile')
-      .then((r) => r.json())
-      .then((data: Profile) => {
+      .then(async (r) => {
+        const data = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(data.error || 'Could not load your profile. Please reload the page.')
+        return data as Profile
+      })
+      .then((data) => {
         setProfile(data)
         setDetails({
           name: data.name,
@@ -42,6 +47,7 @@ export default function ProfilePage() {
           contact_viber: data.contact_viber ?? '',
         })
       })
+      .catch((err: Error) => setLoadError(err.message))
   }, [])
 
   const patch = async (body: object) => {
@@ -72,7 +78,9 @@ export default function ProfilePage() {
     <>
       <Navigation />
       <main className="mx-auto max-w-xl space-y-6 p-4 sm:p-6">
-        {!profile ? (
+        {loadError ? (
+          <Notice message={{ kind: 'error', text: loadError }} />
+        ) : !profile ? (
           <p className="py-12 text-center text-gray-600">Loading…</p>
         ) : (
           <>
