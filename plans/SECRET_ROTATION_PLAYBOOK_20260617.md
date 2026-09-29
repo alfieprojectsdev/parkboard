@@ -2,6 +2,7 @@
 
 **Date:** 2026-06-17
 **Owner action required** — these are console/dashboard operations Claude cannot perform.
+**Status check (2026-09-29): see the table in `docs/PRODUCTION_READINESS.md` §1 for how to confirm each item was done.**
 **This document contains NO secret values** (the repo is public; writing secrets back in is the exact bug being fixed). It references each secret by *location*, not value.
 
 Companion runbook: [`plans/rotate-secrets.sh`](./rotate-secrets.sh) — automates the parts that can be scripted (generate `NEXTAUTH_SECRET`, set Vercel env, verify Neon, scan for leftover leaks, optional history scrub).
@@ -68,7 +69,8 @@ After rotating, the new values must land in exactly two places (never git):
 - [ ] **Vercel** (Project → Settings → Environment Variables), Production + Preview:
   - `DATABASE_URL` (and/or `NEON_CONNECTION_STRING`) ← new Neon string
   - `NEXTAUTH_SECRET` ← new value
-  - `NEXTAUTH_URL` ← `https://parkboard.app` (unchanged)
+  - `NEXTAUTH_URL`: delete it (the v2 app trusts Vercel's host header). `parkboard.app` lapsed after 2026-07-29; see docs/PRODUCTION_READINESS.md §3 for the domain.
+  - v2 reads the secret as `AUTH_SECRET` (falls back to `NEXTAUTH_SECRET`).
   - Remove: `SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_*`, `GOOGLE_*`
   - CLI option: `bash plans/rotate-secrets.sh set-vercel-env NEXTAUTH_SECRET` (needs `vercel login`).
 - [ ] **Local** gitignored `.env.dev` / `.env.prod`: same `DATABASE_URL` + `NEXTAUTH_SECRET`.

@@ -1,181 +1,47 @@
-/**
- * Parking Slots API - List and Create Endpoints
- *
- * GET /api/slots
- * - Lists all active parking slots in the authenticated user's community
- * - Enforces tenant isolation via community_code filtering
- * - Returns only active slots (status='active')
- *
- * POST /api/slots
- * - Creates a new parking slot
- * - Validates request body with CreateSlotSchema
- * - Sets owner_id and community_code from authenticated session
- * - Never accepts community_code from client (security requirement)
- *
- * Security Checklist:
- * ✅ Session validation using getSessionWithCommunity()
- * ✅ Request body validation with Zod schemas
- * ✅ Community_code isolation (multi-tenant requirement)
- * ✅ Appropriate HTTP status codes (200, 201, 400, 401, 403, 500)
- * ✅ Error handling with sanitized messages
- */
+// GET  /api/slots          available slots (anyone; owner names only when logged in)
+// GET  /api/slots?mine=1   the logged-in resident's own slots, every status
+// POST /api/slots          post a slot (logged in)
+//
+// Responses never include phone or Viber; see /api/slots/[id]/contact.
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getSessionWithCommunity } from '@/lib/auth/tenant-access'
-import { createClient } from '@/lib/supabase/server'
-import {
-  CreateSlotSchema,
-  validateRequest,
-  formatZodError
-} from '@/lib/validation/api-schemas'
-import { z } from 'zod'
+import { query } from '@/lib/db/client'
+import { listAvailableSlots, listOwnSlots, getSlot } from '@/lib/slots'
+import { CreateSlotSchema, firstError } from '@/lib/validation/api-schemas'
+import { allow, HOUR } from '@/lib/rate-limit'
+import { currentUserId, error, json, readJson } from '@/lib/api'
 
-/**
- * GET /api/slots
- *
- * Lists all active parking slots in the authenticated user's community
- *
- * Security:
- * - Requires authentication (401 if not authenticated)
- * - Requires community assignment (403 if no community)
- * - Filters by user's community_code (tenant isolation)
- * - Only returns active slots (status='active')
- *
- * Response:
- * - 200 OK: { data: ParkingSlot[] }
- * - 401 Unauthorized: { error: 'Unauthorized' }
- * - 403 Forbidden: { error: 'No community assigned' }
- * - 500 Internal Server Error: { error: 'Failed to fetch slots' }
- */
-export async function GET() {
-  // 1. Validate session and get community context
-  const authResult = await getSessionWithCommunity()
-  if ('error' in authResult) {
-    return NextResponse.json(
-      { error: authResult.error },
-      { status: authResult.status }
-    )
+export async function GET(request: Request) {
+  const userId = await currentUserId()
+  const mine = new URL(request.url).searchParams.get('mine') === '1'
+
+  if (mine) {
+    if (!userId) return error('Log in to see your slots', 401)
+    return json({ slots: await listOwnSlots(userId) })
   }
-
-  const { communityCode } = authResult
-
-  try {
-    // 2. Query database with tenant isolation
-    const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('parking_slots')
-      .select('*')
-      .eq('community_code', communityCode)  // CRITICAL - Tenant isolation
-      .eq('status', 'active')  // Only show active slots
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Database error fetching slots:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch slots' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ data })
-  } catch (error) {
-    console.error('Unexpected error in GET /api/slots:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+  return json({ slots: await listAvailableSlots(userId) })
 }
 
-/**
- * POST /api/slots
- *
- * Creates a new parking slot
- *
- * Request Body:
- * {
- *   slot_number: string,       // Required, e.g., "A-10"
- *   slot_type: 'covered' | 'uncovered' | 'tandem',  // Required
- *   price_per_hour: number,    // Required, must be > 0
- *   description?: string       // Optional
- * }
- *
- * Security:
- * - Requires authentication (401 if not authenticated)
- * - Requires community assignment (403 if no community)
- * - Validates request body with CreateSlotSchema
- * - Sets owner_id from authenticated session
- * - Sets community_code from authenticated session (NEVER from client)
- * - Sets status='active' by default
- *
- * Response:
- * - 201 Created: { data: ParkingSlot }
- * - 400 Bad Request: { error: 'Validation error message' }
- * - 401 Unauthorized: { error: 'Unauthorized' }
- * - 403 Forbidden: { error: 'No community assigned' }
- * - 500 Internal Server Error: { error: 'Failed to create slot' }
- */
-export async function POST(request: NextRequest) {
-  // 1. Validate session and get community context
-  const authResult = await getSessionWithCommunity()
-  if ('error' in authResult) {
-    return NextResponse.json(
-      { error: authResult.error },
-      { status: authResult.status }
-    )
+export async function POST(request: Request) {
+  const userId = await currentUserId()
+  if (!userId) return error('Log in to post a slot', 401)
+
+  const body = await readJson(request)
+  if (body === null) return error('Invalid request body', 400)
+  const parsed = CreateSlotSchema.safeParse(body)
+  if (!parsed.success) return error(firstError(parsed.error), 400)
+
+  if (!(await allow(`post-slot:${userId}`, 20, HOUR))) {
+    return error('You have posted a lot of slots this hour. Please try again later.', 429)
   }
 
-  const { userId, communityCode } = authResult
-
-  try {
-    // 2. Parse and validate request body
-    const body = await request.json()
-    const validatedData = validateRequest(CreateSlotSchema, body)
-
-    // 3. Insert slot with server-side fields
-    const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('parking_slots')
-      .insert({
-        ...validatedData,
-        owner_id: userId,                    // From session, not client
-        community_code: communityCode,       // CRITICAL - Server-side, NEVER from client
-        status: 'active'                     // Default status
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Database error creating slot:', error)
-
-      // Handle unique constraint violations (e.g., duplicate slot_number)
-      if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'Slot number already exists' },
-          { status: 400 }
-        )
-      }
-
-      return NextResponse.json(
-        { error: 'Failed to create slot' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ data }, { status: 201 })
-  } catch (error) {
-    // Handle Zod validation errors
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: formatZodError(error) },
-        { status: 400 }
-      )
-    }
-
-    console.error('Unexpected error in POST /api/slots:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+  const s = parsed.data
+  // owner_id always comes from the session, never from the request body.
+  const result = await query<{ id: string }>(
+    `INSERT INTO parking_slots
+       (owner_id, location_level, location_tower, location_landmark, available_from, available_until, notes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING id`,
+    [userId, s.location_level, s.location_tower, s.location_landmark, s.available_from, s.available_until, s.notes]
+  )
+  return json({ slot: await getSlot(result.rows[0].id, userId) }, 201)
 }

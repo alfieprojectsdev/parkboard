@@ -1,276 +1,78 @@
-/**
- * Parking Slots API - Update and Delete Endpoints
- *
- * PATCH /api/slots/[id]
- * - Updates an existing parking slot
- * - Validates slot ownership (owner_id === userId)
- * - Validates tenant isolation (community_code)
- * - Prevents unauthorized field changes (community_code, owner_id)
- *
- * DELETE /api/slots/[id]
- * - Soft-deletes a parking slot (status='deleted')
- * - Validates slot ownership
- * - Prevents deletion if active bookings exist
- *
- * Security Checklist:
- * ✅ Session validation using getSessionWithCommunity()
- * ✅ Request body validation with Zod schemas
- * ✅ Community_code isolation (multi-tenant requirement)
- * ✅ Resource ownership verification
- * ✅ Active booking check (DELETE)
- * ✅ Appropriate HTTP status codes (200, 204, 400, 401, 403, 404, 409, 500)
- * ✅ Error handling with sanitized messages
- */
+// GET    /api/slots/:id   slot detail (anyone; no contact details)
+// PATCH  /api/slots/:id   owner edits fields or marks it taken / available again
+// DELETE /api/slots/:id   owner removes it (soft: status = expired)
+//
+// Ownership is checked here in app code (owner_id = session user), not by
+// the database; a non-owner gets 403 before anything is written.
 
-import { NextRequest, NextResponse } from 'next/server'
-import { getSessionWithCommunity } from '@/lib/auth/tenant-access'
-import { createClient } from '@/lib/supabase/server'
-import {
-  UpdateSlotSchema,
-  SlotIdSchema,
-  validateRequest,
-  formatZodError
-} from '@/lib/validation/api-schemas'
-import { z } from 'zod'
+import { query } from '@/lib/db/client'
+import { getSlot, getSlotForWrite } from '@/lib/slots'
+import { UpdateSlotSchema, firstError, windowProblem } from '@/lib/validation/api-schemas'
+import { currentUserId, error, json, readJson } from '@/lib/api'
 
-/**
- * PATCH /api/slots/[id]
- *
- * Updates an existing parking slot
- *
- * Request Body (all fields optional):
- * {
- *   slot_number?: string,
- *   slot_type?: 'covered' | 'uncovered' | 'tandem',
- *   price_per_hour?: number,
- *   description?: string,
- *   status?: 'active' | 'maintenance' | 'disabled'
- * }
- *
- * Security:
- * - Requires authentication (401 if not authenticated)
- * - Requires community assignment (403 if no community)
- * - Validates slot ID format (400 if invalid UUID)
- * - Validates slot exists and belongs to user's community (404 if not found)
- * - Validates user owns the slot (403 if not owner)
- * - Prevents community_code changes (validated by schema)
- * - Validates request body with UpdateSlotSchema
- *
- * Response:
- * - 200 OK: { data: ParkingSlot }
- * - 400 Bad Request: { error: 'Validation error message' }
- * - 401 Unauthorized: { error: 'Unauthorized' }
- * - 403 Forbidden: { error: 'You do not own this slot' }
- * - 404 Not Found: { error: 'Slot not found' }
- * - 500 Internal Server Error: { error: 'Failed to update slot' }
- */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  // 1. Validate session and get community context
-  const authResult = await getSessionWithCommunity()
-  if ('error' in authResult) {
-    return NextResponse.json(
-      { error: authResult.error },
-      { status: authResult.status }
-    )
-  }
+type Context = { params: Promise<{ id: string }> }
 
-  const { userId, communityCode } = authResult
-
-  try {
-    // 2. Validate slot ID format
-    const idValidation = validateRequest(SlotIdSchema, { id: params.id })
-
-    // 3. Parse and validate request body
-    const body = await request.json()
-    const validatedData = validateRequest(UpdateSlotSchema, body)
-
-    // 4. Check slot exists and belongs to user's community
-    const supabase = await createClient()
-    const { data: existingSlot, error: fetchError } = await supabase
-      .from('parking_slots')
-      .select('slot_id, owner_id, community_code')
-      .eq('slot_id', idValidation.id)
-      .eq('community_code', communityCode)  // CRITICAL - Tenant isolation
-      .single()
-
-    if (fetchError || !existingSlot) {
-      return NextResponse.json(
-        { error: 'Slot not found' },
-        { status: 404 }
-      )
-    }
-
-    // 5. Verify ownership
-    if (existingSlot.owner_id !== userId) {
-      return NextResponse.json(
-        { error: 'You do not own this slot' },
-        { status: 403 }
-      )
-    }
-
-    // 6. Update slot with validated data
-    const { data, error } = await supabase
-      .from('parking_slots')
-      .update(validatedData)
-      .eq('slot_id', idValidation.id)
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Database error updating slot:', error)
-
-      // Handle unique constraint violations (e.g., duplicate slot_number)
-      if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'Slot number already exists' },
-          { status: 400 }
-        )
-      }
-
-      return NextResponse.json(
-        { error: 'Failed to update slot' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({ data })
-  } catch (error) {
-    // Handle Zod validation errors
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: formatZodError(error) },
-        { status: 400 }
-      )
-    }
-
-    console.error('Unexpected error in PATCH /api/slots/[id]:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
-  }
+export async function GET(_request: Request, { params }: Context) {
+  const { id } = await params
+  const slot = await getSlot(id, await currentUserId())
+  if (!slot) return error('Slot not found', 404)
+  return json({ slot })
 }
 
-/**
- * DELETE /api/slots/[id]
- *
- * Soft-deletes a parking slot (sets status='deleted')
- *
- * Security:
- * - Requires authentication (401 if not authenticated)
- * - Requires community assignment (403 if no community)
- * - Validates slot ID format (400 if invalid UUID)
- * - Validates slot exists and belongs to user's community (404 if not found)
- * - Validates user owns the slot (403 if not owner)
- * - Prevents deletion if active bookings exist (409 Conflict)
- *
- * Response:
- * - 204 No Content: Slot successfully deleted
- * - 400 Bad Request: { error: 'Invalid slot ID format' }
- * - 401 Unauthorized: { error: 'Unauthorized' }
- * - 403 Forbidden: { error: 'You do not own this slot' }
- * - 404 Not Found: { error: 'Slot not found' }
- * - 409 Conflict: { error: 'Cannot delete slot with active bookings' }
- * - 500 Internal Server Error: { error: 'Failed to delete slot' }
- */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  // 1. Validate session and get community context
-  const authResult = await getSessionWithCommunity()
-  if ('error' in authResult) {
-    return NextResponse.json(
-      { error: authResult.error },
-      { status: authResult.status }
+export async function PATCH(request: Request, { params }: Context) {
+  const { id } = await params
+  const userId = await currentUserId()
+  if (!userId) return error('Log in to edit this slot', 401)
+
+  const existing = await getSlotForWrite(id)
+  if (!existing || existing.status === 'expired') return error('Slot not found', 404)
+  if (existing.owner_id !== userId) return error('Only the owner can change this slot', 403)
+
+  const body = await readJson(request)
+  if (body === null) return error('Invalid request body', 400)
+  const parsed = UpdateSlotSchema.safeParse(body)
+  if (!parsed.success) return error(firstError(parsed.error), 400)
+  const input = parsed.data
+  const raw = body as Record<string, unknown>
+
+  if (input.available_from || input.available_until) {
+    const problem = windowProblem(
+      new Date(input.available_from ?? existing.available_from),
+      new Date(input.available_until ?? existing.available_until)
     )
+    if (problem) return error(problem, 400)
   }
 
-  const { userId, communityCode } = authResult
-
-  try {
-    // 2. Validate slot ID format
-    const idValidation = validateRequest(SlotIdSchema, { id: params.id })
-
-    // 3. Check slot exists and belongs to user's community
-    const supabase = await createClient()
-    const { data: existingSlot, error: fetchError } = await supabase
-      .from('parking_slots')
-      .select('slot_id, owner_id, community_code')
-      .eq('slot_id', idValidation.id)
-      .eq('community_code', communityCode)  // CRITICAL - Tenant isolation
-      .single()
-
-    if (fetchError || !existingSlot) {
-      return NextResponse.json(
-        { error: 'Slot not found' },
-        { status: 404 }
-      )
-    }
-
-    // 4. Verify ownership
-    if (existingSlot.owner_id !== userId) {
-      return NextResponse.json(
-        { error: 'You do not own this slot' },
-        { status: 403 }
-      )
-    }
-
-    // 5. Check for active bookings
-    const { data: activeBookings, error: bookingError } = await supabase
-      .from('bookings')
-      .select('booking_id')
-      .eq('slot_id', idValidation.id)
-      .neq('status', 'cancelled')  // Any status except cancelled
-      .limit(1)
-
-    if (bookingError) {
-      console.error('Database error checking active bookings:', bookingError)
-      return NextResponse.json(
-        { error: 'Failed to delete slot' },
-        { status: 500 }
-      )
-    }
-
-    if (activeBookings && activeBookings.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete slot with active bookings' },
-        { status: 409 }
-      )
-    }
-
-    // 6. Soft delete: Update status to 'deleted'
-    const { error: deleteError } = await supabase
-      .from('parking_slots')
-      .update({ status: 'deleted' })
-      .eq('slot_id', idValidation.id)
-
-    if (deleteError) {
-      console.error('Database error deleting slot:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to delete slot' },
-        { status: 500 }
-      )
-    }
-
-    // 7. Return 204 No Content (successful deletion)
-    return new NextResponse(null, { status: 204 })
-  } catch (error) {
-    // Handle Zod validation errors
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: formatZodError(error) },
-        { status: 400 }
-      )
-    }
-
-    console.error('Unexpected error in DELETE /api/slots/[id]:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+  const sets: string[] = []
+  const values: unknown[] = []
+  const set = (column: string, value: unknown) => {
+    values.push(value)
+    sets.push(`${column} = $${values.length}`)
   }
+  if (input.location_level) set('location_level', input.location_level)
+  if (input.location_tower) set('location_tower', input.location_tower)
+  if ('location_landmark' in raw) set('location_landmark', input.location_landmark ?? null)
+  if (input.available_from) set('available_from', input.available_from)
+  if (input.available_until) set('available_until', input.available_until)
+  if ('notes' in raw) set('notes', input.notes ?? null)
+  if (input.status) set('status', input.status)
+  if (sets.length === 0) return error('Nothing to update', 400)
+
+  values.push(id)
+  await query(`UPDATE parking_slots SET ${sets.join(', ')} WHERE id = $${values.length}`, values)
+  return json({ slot: await getSlot(id, userId) })
+}
+
+export async function DELETE(_request: Request, { params }: Context) {
+  const { id } = await params
+  const userId = await currentUserId()
+  if (!userId) return error('Log in to remove this slot', 401)
+
+  const existing = await getSlotForWrite(id)
+  if (!existing || existing.status === 'expired') return error('Slot not found', 404)
+  if (existing.owner_id !== userId) return error('Only the owner can remove this slot', 403)
+
+  // Soft retire (DL-005): the row stays for history, browse filters it out.
+  await query(`UPDATE parking_slots SET status = 'expired' WHERE id = $1`, [id])
+  return json({ ok: true })
 }

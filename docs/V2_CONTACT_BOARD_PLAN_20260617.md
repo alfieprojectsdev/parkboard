@@ -2,9 +2,9 @@
 
 _Generated 2026-06-17 via planner skill (architect design, validation PASS). Source: plan.json `3d3e8083-d12d-47e1-bbc6-8a6172275a85`._
 
-> Status: build **paused** pending owner secret-rotation. Code work has no blocker; only deploy does.
+> Status (2026-09-29): **code complete.** M-002 to M-007 are done on branch `claude/audit-three-apps-production-8c6ced`, together with a Next 16 upgrade and audit fixes; deviations from this plan are listed in `docs/PRODUCTION_READINESS.md`. Deploy still waits on the owner steps there (secret rotation, fresh Neon branch, domain: `parkboard.app` has lapsed).
 
-> **This document is the v2 roadmap.** It is the single source of truth for milestones, decisions, invariants, and owner-blocked prerequisites, and it survives context clears. Drive execution from here, one milestone = one PR (CodeRabbit-reviewed). Progress: **M-001 ✅ done (PR #2)**; M-002→M-007 pending.
+> **This document is the v2 roadmap.** It is the single source of truth for milestones, decisions, invariants, and owner-blocked prerequisites, and it survives context clears. Drive execution from here, one milestone = one PR (CodeRabbit-reviewed). Progress: **M-001 ✅ done (PR #2)**; **M-002 to M-007 ✅ done** on one branch (four commits: platform, app, tests, docs; see PRODUCTION_READINESS.md).
 
 ### Execution strategy per milestone
 

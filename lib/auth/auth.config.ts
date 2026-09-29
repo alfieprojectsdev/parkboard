@@ -1,86 +1,82 @@
 import type { NextAuthConfig } from 'next-auth'
 
 // ============================================================================
-// PUBLIC ROUTES - No authentication required
+// ROUTE ACCESS
 // ============================================================================
-export const PUBLIC_ROUTES = [
+// Pages anyone can open. Everything else needs a login. API routes are not
+// handled here: they return their own JSON 401s.
+const PUBLIC_PAGES: Array<string | RegExp> = [
   '/',
   '/login',
   '/register',
-  '/auth/callback',
   '/LMR',
-  '/LMR/',
   '/LMR/slots',
-  '/LMR/slots/',
+  /^\/LMR\/slots\/(?!new$)[^/]+$/, // slot detail (contact stays hidden until login)
 ]
 
-// ============================================================================
-// AUTH-ONLY ROUTES - Only accessible when NOT logged in
-// ============================================================================
-export const AUTH_ONLY_ROUTES = [
-  '/login',
-  '/register',
-]
+// Pages a logged-in user is sent away from.
+const AUTH_ONLY_PAGES = ['/login', '/register']
+
+const matches = (pathname: string, rule: string | RegExp) =>
+  typeof rule === 'string' ? pathname === rule : rule.test(pathname)
 
 // ============================================================================
-// EDGE-COMPATIBLE AUTH CONFIG
+// SHARED CONFIG (no database access)
 // ============================================================================
-export const authConfig: NextAuthConfig = {
-  // Custom pages - redirect to our custom login page
-  pages: {
-    signIn: '/login',
-  },
-
-  // Callbacks for authorization and session handling
+// proxy.ts builds its NextAuth instance from this object alone, so the proxy
+// never loads pg or bcrypt. lib/auth/auth.ts spreads it and adds the
+// credentials provider. This file must not import or re-export auth.ts:
+// until 2026-09-29 it did (`export { auth } from './auth'`), which pulled the
+// database client into the middleware bundle.
+export const authConfig = {
+  pages: { signIn: '/login' },
+  session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
+  secret: process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET,
+  // Vercel sets the Host header; this lets preview URLs and custom domains work.
+  trustHost: true,
   callbacks: {
-    // ========================================================================
-    // AUTHORIZED CALLBACK
-    // ========================================================================
-    // This runs in middleware to determine if a request should proceed
-    // Returns: true (allow) or Response (redirect/deny)
     authorized({ auth, request: { nextUrl } }) {
-      const isAuthenticated = !!auth?.user
       const pathname = nextUrl.pathname
+      if (pathname.startsWith('/api/')) return true
 
-      // RULE 0: Skip middleware for API routes
-      // API routes handle their own authentication and return JSON
-      // Redirecting them would break API response
-      if (pathname.startsWith('/api/')) {
-        return true
+      const loggedIn = !!auth?.user
+      if (loggedIn && AUTH_ONLY_PAGES.includes(pathname)) {
+        return Response.redirect(new URL('/LMR/slots', nextUrl.origin))
       }
-
-      // RULE 1: Check if this is a public route
-      const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname === route)
-
-      // RULE 2: Protect non-public routes
-      // If user is NOT authenticated and trying to access protected route
-      // Redirect to login page with redirect parameter
-      if (!isAuthenticated && !isPublicRoute) {
-        const redirectUrl = new URL('/login', nextUrl.origin)
-        redirectUrl.searchParams.set('redirect', pathname)
-        return Response.redirect(redirectUrl)
+      if (!loggedIn && !PUBLIC_PAGES.some((rule) => matches(pathname, rule))) {
+        const login = new URL('/login', nextUrl.origin)
+        login.searchParams.set('redirect', pathname)
+        return Response.redirect(login)
       }
-
-      // RULE 3: Redirect authenticated users away from auth pages
-      // If user IS logged in, they shouldn't see login/register pages
-      const isAuthOnlyRoute = AUTH_ONLY_ROUTES.some((route) => pathname === route)
-
-      if (isAuthenticated && isAuthOnlyRoute) {
-        // Single community (v2): send logged-in users to the home page
-        return Response.redirect(new URL('/', nextUrl.origin))
-      }
-
-      // Allow to request to proceed
       return true
     },
+    jwt({ token, user, trigger, session }) {
+      if (user) {
+        token.userId = user.id ?? ''
+        token.name = user.name ?? null
+        token.email = user.email ?? null
+        token.unitNumber = (user as { unitNumber?: string }).unitNumber ?? null
+      }
+      // The profile page calls useSession().update() after a save so the nav
+      // shows the new name/unit. Display only: no route authorizes on these.
+      if (trigger === 'update' && session && typeof session === 'object') {
+        const { name, unitNumber } = session as { name?: unknown; unitNumber?: unknown }
+        if (typeof name === 'string' && name.length <= 100) token.name = name
+        if (typeof unitNumber === 'string' && unitNumber.length <= 20) token.unitNumber = unitNumber
+      }
+      return token
+    },
+    session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.userId as string
+        session.user.name = token.name as string
+        session.user.email = token.email as string
+        session.user.unitNumber = (token.unitNumber as string | null) ?? null
+      }
+      return session
+    },
   },
-
-  // Empty providers array - providers are added in auth.ts
-  // This ensures that config is edge-compatible (no DB calls here)
   providers: [],
-}
-
-// Export auth for middleware use (edge-compatible re-export of full auth.ts)
-export { auth } from './auth'
+} satisfies NextAuthConfig
 
 export default authConfig
