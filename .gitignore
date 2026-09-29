@@ -56,3 +56,6 @@ claude_*.log
 *.deprecated_*
 .env.dev
 .env.prod
+
+# Git worktrees (PR-per-milestone workflow)
+wt/
