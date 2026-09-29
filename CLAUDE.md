@@ -63,7 +63,13 @@ NextAuth v5 beta (credentials + JWT), `pg` against Neon, zod 4, Vitest.
   (`IF NOT EXISTS`, `DROP ... IF EXISTS`). Production builds apply them:
   `npm run build` runs `scripts/migrate.mjs --vercel` first, which only acts
   when `VERCEL_ENV=production`. Tests apply every migration to
-  PGlite and re-run them.
+  PGlite and re-run them; `test/migrate.test.ts` covers the runner
+  (`scripts/migrate-core.mjs`, the CLI and its production-only gate).
+- Tests only see an empty database. Before merging a new migration, it needs
+  a dry run on a Neon branch of production (steps in
+  `docs/PRODUCTION_READINESS.md`, "Changing the schema after launch"). Neon
+  access is Alfie's: ask Alfie to run it and paste the output. Add columns
+  and tables; drop or rename only once no deployed code uses the thing.
 - Client pages fetch the API routes; never talk to the database from the
   browser.
 
